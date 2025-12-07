@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>교실시뮬레이터 v3 - Google Sheets 연동</title>
+    <title>Anthropic 오피스 시뮬레이터 - 코미디 에디션</title>
     <!-- Noto Sans KR 폰트 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -587,6 +587,7 @@
         let quizData = [];
         let characterQuizMap = {};
         let boardInfo = {}; // 칠판 정보
+        let characterNames = {}; // 캐릭터 이름 매핑
         
         // 기본 데이터 (Google Sheets 로딩 실패 시 사용)
         const defaultData = {
@@ -638,8 +639,8 @@
                 line5: dataMap['칠판 5줄'] || dataMap['질문 5줄'] || '칠판 5줄'
             };
             
-            // 캐릭터 이름 추출
-            const characterNames = {
+            // 캐릭터 이름 추출 (전역 변수에 저장)
+            characterNames = {
                 '선생님': dataMap['선생님 이름'] || '선생님',
                 '학생1': dataMap['학생1 이름'] || '학생1',
                 '학생2': dataMap['학생2 이름'] || '학생2',
@@ -1394,86 +1395,96 @@
         // Add characters with varied appearances and quirks
         // 선생님: 화이트보드(0, 0, -19.8)에서 남쪽(Z+)으로 5
         // 아주 진한 회색
-        const teacher = createCharacter('선생님', '', 0, -14.8, 0x404040, {
+        const teacher = createCharacter(characterNames['선생님'] || '선생님', '', 0, -14.8, 0x404040, {
             hairColor: 0x404040
         });
         teacher.userData.originalPosition = { x: 0, z: -14.8 };
         teacher.userData.completed = false;
         teacher.userData.deskPosition = null; // 선생님은 책상이 없음
+        teacher.userData.name = '선생님'; // 키 저장
         
         // 학생들: 각 책상에서 남쪽(Z+)으로 2
         // 랜덤 색상 적용 (9명에게 9가지 색상을 중복 없이 배정)
         // 책상1: (-10, -10) → 학생1: (-10, -8)
-        const student1 = createCharacter('학생1', '', -10, -8, shuffledColors[0], {
+        const student1 = createCharacter(characterNames['학생1'] || '학생1', '', -10, -8, shuffledColors[0], {
             hairColor: shuffledColors[0]
         });
         student1.userData.originalPosition = { x: -10, z: -8 };
         student1.userData.completed = false;
         student1.userData.deskPosition = { x: -10, z: -10 };
+        student1.userData.name = '학생1'; // 키 저장
         
         // 책상2: (0, -10) → 학생2: (0, -8)
-        const student2 = createCharacter('학생2', '', 0, -8, shuffledColors[1], {
+        const student2 = createCharacter(characterNames['학생2'] || '학생2', '', 0, -8, shuffledColors[1], {
             hairColor: shuffledColors[1]
         });
         student2.userData.originalPosition = { x: 0, z: -8 };
         student2.userData.completed = false;
         student2.userData.deskPosition = { x: 0, z: -10 };
+        student2.userData.name = '학생2'; // 키 저장
         
         // 책상3: (10, -10) → 학생3: (10, -8)
-        const student3 = createCharacter('학생3', '', 10, -8, shuffledColors[2], {
+        const student3 = createCharacter(characterNames['학생3'] || '학생3', '', 10, -8, shuffledColors[2], {
             hairColor: shuffledColors[2]
         });
         student3.userData.originalPosition = { x: 10, z: -8 };
         student3.userData.completed = false;
         student3.userData.deskPosition = { x: 10, z: -10 };
+        student3.userData.name = '학생3'; // 키 저장
         
         // 책상4: (-10, 0) → 학생4: (-10, 2)
-        const student4 = createCharacter('학생4', '', -10, 2, shuffledColors[3], {
+        const student4 = createCharacter(characterNames['학생4'] || '학생4', '', -10, 2, shuffledColors[3], {
             hairColor: shuffledColors[3]
         });
         student4.userData.originalPosition = { x: -10, z: 2 };
         student4.userData.completed = false;
         student4.userData.deskPosition = { x: -10, z: 0 };
+        student4.userData.name = '학생4'; // 키 저장
         
         // 책상5: (0, 0) → 학생5: (0, 2)
-        const student5 = createCharacter('학생5', '', 0, 2, shuffledColors[4], {
+        const student5 = createCharacter(characterNames['학생5'] || '학생5', '', 0, 2, shuffledColors[4], {
             hairColor: shuffledColors[4]
         });
         student5.userData.originalPosition = { x: 0, z: 2 };
         student5.userData.completed = false;
         student5.userData.deskPosition = { x: 0, z: 0 };
+        student5.userData.name = '학생5'; // 키 저장
         
         // 책상6: (10, 0) → 학생6: (10, 2)
-        const student6 = createCharacter('학생6', '', 10, 2, shuffledColors[5], {
+        const student6 = createCharacter(characterNames['학생6'] || '학생6', '', 10, 2, shuffledColors[5], {
             hairColor: shuffledColors[5]
         });
         student6.userData.originalPosition = { x: 10, z: 2 };
         student6.userData.completed = false;
         student6.userData.deskPosition = { x: 10, z: 0 };
+        student6.userData.name = '학생6'; // 키 저장
         
         // 책상7: (-10, 10) → 학생7: (-10, 12)
-        const student7 = createCharacter('학생7', '', -10, 12, shuffledColors[6], {
+        const student7 = createCharacter(characterNames['학생7'] || '학생7', '', -10, 12, shuffledColors[6], {
             hairColor: shuffledColors[6]
         });
         student7.userData.originalPosition = { x: -10, z: 12 };
         student7.userData.completed = false;
         student7.userData.deskPosition = { x: -10, z: 10 };
+        student7.userData.name = '학생7'; // 키 저장
         
         // 책상8: (0, 10) → 학생8: (0, 12)
-        const student8 = createCharacter('학생8', '', 0, 12, shuffledColors[7], {
+        const student8 = createCharacter(characterNames['학생8'] || '학생8', '', 0, 12, shuffledColors[7], {
             hairColor: shuffledColors[7]
         });
         student8.userData.originalPosition = { x: 0, z: 12 };
         student8.userData.completed = false;
         student8.userData.deskPosition = { x: 0, z: 10 };
+        student8.userData.name = '학생8'; // 키 저장
         
         // 책상9: (10, 10) → 학생9: (10, 12)
-        const student9 = createCharacter('학생9', '', 10, 12, shuffledColors[8], {
+        const student9 = createCharacter(characterNames['학생9'] || '학생9', '', 10, 12, shuffledColors[8], {
             hairColor: shuffledColors[8]
         });
         student9.userData.originalPosition = { x: 10, z: 12 };
         student9.userData.completed = false;
         student9.userData.deskPosition = { x: 10, z: 10 };
+        student9.userData.name = '학생9'; // 키 저장
         
         scene.add(teacher, student1, student2, student3, student4, student5, student6, student7, student8, student9);
         
