@@ -13,6 +13,17 @@
             font-family: 'Noto Sans KR', sans-serif;
         }
         
+        :root {
+            --ui-margin: 30px;
+            --ui-margin-mobile: 20px;
+        }
+        
+        @media (max-width: 768px) {
+            :root {
+                --ui-margin: var(--ui-margin-mobile);
+            }
+        }
+        
         body {
             margin: 0;
             padding: 0;
@@ -270,13 +281,14 @@
         /* 네비게이션 버튼 (왼쪽 아래) */
         #navigation-controls {
             position: fixed;
-            bottom: 30px;
-            left: 30px;
+            bottom: var(--ui-margin);
+            left: var(--ui-margin);
             z-index: 100;
             display: grid;
             grid-template-columns: repeat(3, 100px);
             grid-template-rows: repeat(2, 100px);
             gap: 12px;
+            will-change: transform;
         }
         
         .nav-button {
@@ -311,8 +323,8 @@
         /* 스크린샷 버튼 (왼쪽 위) */
         #screenshot-button {
             position: fixed;
-            top: 30px;
-            left: 30px;
+            top: var(--ui-margin);
+            left: var(--ui-margin);
             width: 100px;
             height: 100px;
             background: rgba(255, 255, 255, 0.15);
@@ -328,6 +340,7 @@
             padding: 0;
             backdrop-filter: blur(10px);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            will-change: transform;
         }
         
         #screenshot-button svg {
@@ -354,8 +367,8 @@
         /* 전체화면 버튼 (오른쪽 위) */
         #fullscreen-button {
             position: fixed;
-            top: 30px;
-            right: 30px;
+            top: var(--ui-margin);
+            right: var(--ui-margin);
             width: 100px;
             height: 100px;
             background: rgba(255, 255, 255, 0.15);
@@ -370,6 +383,7 @@
             z-index: 100;
             backdrop-filter: blur(10px);
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            will-change: transform;
         }
         
         #fullscreen-button svg {
@@ -396,8 +410,8 @@
         /* 진행 상태바 (오른쪽 아래) */
         #progress-bar {
             position: fixed;
-            bottom: 30px;
-            right: 30px;
+            bottom: var(--ui-margin);
+            right: var(--ui-margin);
             width: 100px;
             height: 100px;
             background: rgba(255, 255, 255, 0.15);
@@ -417,6 +431,7 @@
             letter-spacing: -2px;
             line-height: 1;
             padding-bottom: 3px;
+            will-change: contents;
         }
         
         /* UI 숨기기 클래스 */
@@ -1703,8 +1718,11 @@
             const completedCount = characters.filter(c => c.userData.completed).length;
             const progressBar = document.getElementById('progress-bar');
             
+            // 최대 10점 제한
+            const score = Math.min(completedCount, 10);
+            
             // 숫자를 그대로 표시 (1, 2, ... 10)
-            progressBar.textContent = completedCount.toString();
+            progressBar.textContent = score.toString();
         }
         
         // Character movement AI with chaos
@@ -1968,6 +1986,11 @@
         let currentQuiz = null;
         
         function openDialogue(character) {
+            // 이미 완료된 캐릭터는 대화 불가
+            if (character.userData.completed) {
+                return;
+            }
+            
             currentCharacter = character;
             
             // 선생님일 경우 학생 9명 완료 여부 체크
@@ -2241,6 +2264,21 @@
             submitButton.disabled = true;
             
             if (isCorrect) {
+                // 이미 10명이 완료되었는지 확인 (안전장치)
+                const completedCount = characters.filter(c => c.userData.completed).length;
+                if (completedCount >= 10) {
+                    feedback.style.display = 'block';
+                    feedback.style.background = '#fff3cd';
+                    feedback.style.color = '#856404';
+                    feedback.textContent = '이미 모든 문제가 완료되었습니다!';
+                    
+                    setTimeout(() => {
+                        dialogueBox.style.display = 'none';
+                        currentCharacter = null;
+                    }, 2000);
+                    return;
+                }
+                
                 // 오디오 컨텍스트 초기화 및 정답 효과음
                 initAudioContext();
                 playCorrectSound();
@@ -2527,40 +2565,63 @@
         let touchStartX = 0;
         let isTouching = false;
         
+        // 캔버스 터치 이벤트 (방향키와 독립적으로 작동)
+        let canvasTouchId = null; // 캔버스 터치의 식별자
+        
         renderer.domElement.addEventListener('touchstart', (e) => {
-            // 한 손가락만 허용
-            if (e.touches.length === 1) {
-                isTouching = true;
-                touchStartX = e.touches[0].clientX;
+            // 캔버스에서 시작된 첫 번째 터치만 시점 이동에 사용
+            if (canvasTouchId === null && e.touches.length > 0) {
+                // 캔버스를 터치한 것 중 첫 번째 찾기
+                for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    if (touch.target === renderer.domElement) {
+                        canvasTouchId = touch.identifier;
+                        touchStartX = touch.clientX;
+                        isTouching = true;
+                        break;
+                    }
+                }
                 e.preventDefault();
-            } else {
-                // 두 손가락 이상이면 터치 무시
-                isTouching = false;
             }
         });
         
         renderer.domElement.addEventListener('touchmove', (e) => {
-            // 한 손가락만 허용, 터치 중이어야 함
-            if (isTouching && e.touches.length === 1) {
-                const deltaX = e.touches[0].clientX - touchStartX;
-                mouseX -= deltaX * 0.005; // 터치 스와이프로 시점 회전
-                touchStartX = e.touches[0].clientX;
-                e.preventDefault();
-            } else if (e.touches.length > 1) {
-                // 두 손가락 이상이면 터치 중단
-                isTouching = false;
+            // 저장된 터치 ID와 일치하는 터치만 처리
+            if (canvasTouchId !== null) {
+                for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    if (touch.identifier === canvasTouchId) {
+                        const deltaX = touch.clientX - touchStartX;
+                        mouseX -= deltaX * 0.005; // 터치 스와이프로 시점 회전
+                        touchStartX = touch.clientX;
+                        e.preventDefault();
+                        break;
+                    }
+                }
             }
         });
         
         renderer.domElement.addEventListener('touchend', (e) => {
-            // 모든 터치가 끝났을 때만 초기화
-            if (e.touches.length === 0) {
-                isTouching = false;
+            // 해당 터치가 끝났는지 확인
+            if (canvasTouchId !== null) {
+                let touchStillActive = false;
+                for (let i = 0; i < e.touches.length; i++) {
+                    if (e.touches[i].identifier === canvasTouchId) {
+                        touchStillActive = true;
+                        break;
+                    }
+                }
+                
+                if (!touchStillActive) {
+                    canvasTouchId = null;
+                    isTouching = false;
+                }
             }
         });
         
         renderer.domElement.addEventListener('touchcancel', () => {
             // 터치가 취소되면 즉시 초기화
+            canvasTouchId = null;
             isTouching = false;
         });
         
