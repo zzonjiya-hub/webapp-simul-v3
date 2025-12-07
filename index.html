@@ -1,0 +1,2489 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>교실시뮬레이터 v3 - Google Sheets 연동</title>
+    <!-- Noto Sans KR 폰트 -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
+    <style>
+        * {
+            font-family: 'Noto Sans KR', sans-serif;
+        }
+        
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            font-family: 'Noto Sans KR', sans-serif;
+            background: #000;
+        }
+        
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+        }
+        
+        #ui-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+        }
+        
+        #dialogue-box {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
+            padding: 20px;
+            border-radius: 15px;
+            max-width: 600px;
+            width: 90%;
+            display: none;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(20px);
+            z-index: 1000;
+        }
+        
+        #dialogue-close-btn {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            width: 32px;
+            height: 32px;
+            background: rgba(0, 0, 0, 0.1);
+            border: none;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: #666;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            line-height: 1;
+        }
+        
+        #dialogue-close-btn:hover {
+            background: rgba(217, 115, 86, 0.2);
+            color: #D97356;
+            transform: scale(1.1);
+        }
+        
+        #dialogue-close-btn:active {
+            transform: scale(0.95);
+        }
+        
+        #dialogue-box h3 {
+            margin: 0 0 10px 0;
+            color: #D97356;
+        }
+        
+        #dialogue-content {
+            margin: 10px 0;
+            line-height: 1.6;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+        
+        .dialogue-option {
+            background: #f0f0f0;
+            border: 2px solid #D97356;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .dialogue-option:hover {
+            background: #D97356;
+            color: white;
+            transform: translateX(5px);
+        }
+        
+        #custom-question-container {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+        
+        #custom-question-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #D97356;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        
+        #custom-question-submit {
+            background: #D97356;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            margin-top: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        #custom-question-submit:hover {
+            background: #c85a3f;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        #custom-question-submit:disabled {
+            background: #999;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(217, 115, 86, 0.3);
+            border-radius: 50%;
+            border-top-color: #D97356;
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .instruction {
+            opacity: 0.8;
+            font-size: 14px;
+            margin-top: 10px;
+        }
+        
+        #interaction-prompt {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 180px;
+            height: 180px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            border-radius: 50%;
+            display: none;
+            font-size: 36px;
+            font-weight: bold;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            border: 3px solid rgba(255, 255, 255, 0.8);
+            transition: all 0.3s ease;
+            user-select: none;
+        }
+        
+        #interaction-prompt:hover {
+            background: rgba(0, 0, 0, 0.8);
+            transform: translate(-50%, -50%) scale(1.1);
+            border-color: rgba(255, 255, 255, 1);
+        }
+        
+        #interaction-prompt:active {
+            transform: translate(-50%, -50%) scale(0.95);
+        }
+        
+        .floating-text {
+            position: absolute;
+            color: #ff0;
+            font-size: 24px;
+            font-weight: bold;
+            pointer-events: none;
+            animation: floatUp 2s ease-out forwards;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+        }
+        
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-100px); }
+        }
+        
+        /* 색종이 애니메이션 */
+        .confetti {
+            position: fixed;
+            width: 10px;
+            height: 10px;
+            background: #f0f;
+            position: absolute;
+            animation: confetti-fall 3s linear forwards;
+            z-index: 9999;
+        }
+        
+        @keyframes confetti-fall {
+            0% {
+                transform: translateY(0) rotateX(0deg) rotateY(0deg) rotateZ(0deg);
+                opacity: 1;
+            }
+            100% {
+                transform: translateY(100vh) rotateX(720deg) rotateY(720deg) rotateZ(720deg);
+                opacity: 0;
+            }
+        }
+        
+        /* 축하 메시지 */
+        #celebration-message {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            background: rgba(255, 215, 0, 0.95);
+            color: #333;
+            padding: 40px;
+            border-radius: 20px;
+            font-size: 32px;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            z-index: 10000;
+            display: none;
+            animation: celebration-appear 0.5s ease-out forwards;
+        }
+        
+        @keyframes celebration-appear {
+            to {
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+        
+        /* 네비게이션 버튼 (왼쪽 아래) */
+        #navigation-controls {
+            position: fixed;
+            bottom: 30px;
+            left: 30px;
+            z-index: 100;
+            display: grid;
+            grid-template-columns: repeat(3, 100px);
+            grid-template-rows: repeat(2, 100px);
+            gap: 12px;
+        }
+        
+        .nav-button {
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            color: white;
+            font-size: 40px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            user-select: none;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        .nav-button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+        
+        .nav-button:active {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(0.95);
+        }
+        
+        /* 스크린샷 버튼 (왼쪽 위) */
+        #screenshot-button {
+            position: fixed;
+            top: 30px;
+            left: 30px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 100;
+            padding: 0;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        #screenshot-button svg {
+            width: 50px;
+            height: 50px;
+            fill: none;
+            stroke: white;
+            stroke-width: 2;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        
+        #screenshot-button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+        
+        #screenshot-button:active {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(0.95);
+        }
+        
+        /* 전체화면 버튼 (오른쪽 위) */
+        #fullscreen-button {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.2s;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        #fullscreen-button svg {
+            width: 45px;
+            height: 45px;
+            fill: none;
+            stroke: white;
+            stroke-width: 2.5;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+        }
+        
+        #fullscreen-button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255, 255, 255, 0.5);
+            transform: scale(1.05);
+        }
+        
+        #fullscreen-button:active {
+            background: rgba(255, 255, 255, 0.35);
+            transform: scale(0.95);
+        }
+        
+        /* 진행 상태바 (오른쪽 아래) */
+        #progress-bar {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.15);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 25px;
+            color: white;
+            font-size: 50px;
+            font-weight: bold;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            font-family: 'Noto Sans KR', sans-serif;
+            letter-spacing: -2px;
+            line-height: 1;
+            padding-bottom: 3px;
+        }
+        
+        /* UI 숨기기 클래스 */
+        .hide-ui {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+    
+    <!-- UI 오버레이 제거됨 -->
+    
+    <!-- 로딩 화면 -->
+    <div id="loading-screen" style="position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 9999; color: white;">
+        <div style="font-size: 24px; margin-bottom: 20px;">데이터 로딩 중...</div>
+        <div style="width: 200px; height: 4px; background: rgba(255,255,255,0.2); border-radius: 2px; overflow: hidden;">
+            <div id="loading-bar" style="width: 0%; height: 100%; background: #D97356; transition: width 0.3s;"></div>
+        </div>
+        <div id="loading-status" style="margin-top: 10px; font-size: 14px; opacity: 0.8;">Google Sheets 연결 중...</div>
+    </div>
+    
+    <div id="dialogue-box">
+        <button id="dialogue-close-btn">×</button>
+        <h3 id="dialogue-name">이름</h3>
+        <div id="dialogue-content" style="font-size: 18px; font-weight: bold; margin-bottom: 20px;">질문이 여기에 표시됩니다</div>
+        <div id="quiz-container">
+            <input type="text" id="answer-input" placeholder="정답을 입력하세요" style="width: 100%; padding: 12px; border: 2px solid #D97356; border-radius: 8px; font-size: 16px; box-sizing: border-box; margin-bottom: 10px;">
+            <button id="submit-answer" style="width: 100%; background: #D97356; color: white; border: none; padding: 12px; border-radius: 8px; font-size: 16px; cursor: pointer; font-weight: bold; transition: all 0.3s;">정답 제출</button>
+            <div id="feedback" style="margin-top: 15px; padding: 12px; border-radius: 8px; display: none; font-weight: bold; text-align: center;"></div>
+        </div>
+    </div>
+    
+    <div id="interaction-prompt">대화하기</div>
+    
+    <!-- 축하 메시지 -->
+    <div id="celebration-message">
+        🎉 축하합니다! 🎉<br>
+        모든 문제를 해결했습니다!
+    </div>
+    
+    <!-- 스크린샷 버튼 (왼쪽 위) -->
+    <button id="screenshot-button" title="화면 캡처">
+        <svg viewBox="0 0 24 24">
+            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+            <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+    </button>
+    
+    <!-- 전체화면 버튼 (오른쪽 위) -->
+    <button id="fullscreen-button" title="전체화면">
+        <svg viewBox="0 0 24 24">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+        </svg>
+    </button>
+    
+    <!-- 네비게이션 버튼 (왼쪽 아래) -->
+    <div id="navigation-controls">
+        <div></div>
+        <button class="nav-button" id="nav-up">▲</button>
+        <div></div>
+        <button class="nav-button" id="nav-left">◀</button>
+        <button class="nav-button" id="nav-down">▼</button>
+        <button class="nav-button" id="nav-right">▶</button>
+    </div>
+    
+    <!-- 진행 상태바 (오른쪽 아래) -->
+    <div id="progress-bar">0</div>
+    
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // 효과음 생성 함수
+        let audioContext = null;
+        
+        function initAudioContext() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            return audioContext;
+        }
+        
+        function playCorrectSound() {
+            const ctx = initAudioContext();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            oscillator.frequency.value = 523.25; // C5
+            oscillator.type = 'sine';
+            
+            gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+            
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.5);
+            
+            // 화음 추가
+            setTimeout(() => {
+                const oscillator2 = ctx.createOscillator();
+                const gainNode2 = ctx.createGain();
+                
+                oscillator2.connect(gainNode2);
+                gainNode2.connect(ctx.destination);
+                
+                oscillator2.frequency.value = 659.25; // E5
+                oscillator2.type = 'sine';
+                
+                gainNode2.gain.setValueAtTime(0.3, ctx.currentTime);
+                gainNode2.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+                
+                oscillator2.start(ctx.currentTime);
+                oscillator2.stop(ctx.currentTime + 0.5);
+            }, 100);
+        }
+        
+        function playWrongSound() {
+            const ctx = initAudioContext();
+            const oscillator = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+            
+            oscillator.connect(gainNode);
+            gainNode.connect(ctx.destination);
+            
+            oscillator.frequency.value = 200; // 낮은 음
+            oscillator.type = 'sawtooth';
+            
+            gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+            
+            oscillator.start(ctx.currentTime);
+            oscillator.stop(ctx.currentTime + 0.3);
+        }
+        
+        function playCelebrationMusic() {
+            const ctx = initAudioContext();
+            const notes = [523.25, 587.33, 659.25, 698.46, 783.99, 880.00, 987.77, 1046.50]; // C major scale
+            let noteIndex = 0;
+            
+            const playNote = () => {
+                if (noteIndex >= notes.length * 4) return; // 4번 반복
+                
+                const oscillator = ctx.createOscillator();
+                const gainNode = ctx.createGain();
+                
+                oscillator.connect(gainNode);
+                gainNode.connect(ctx.destination);
+                
+                oscillator.frequency.value = notes[noteIndex % notes.length];
+                oscillator.type = 'triangle';
+                
+                gainNode.gain.setValueAtTime(0.2, ctx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.2);
+                
+                oscillator.start(ctx.currentTime);
+                oscillator.stop(ctx.currentTime + 0.2);
+                
+                noteIndex++;
+                setTimeout(playNote, 150);
+            };
+            
+            playNote();
+        }
+        
+        // Google Sheets 데이터 저장 변수
+        let quizData = [];
+        let characterQuizMap = {};
+        let boardInfo = {}; // 칠판 정보
+        
+        // 기본 데이터 (Google Sheets 로딩 실패 시 사용)
+        const defaultData = {
+            "칠판 1줄": "덧셈",
+            "칠판 2줄": "같은 수의 덧셈을 계산해보자.",
+            "칠판 3줄": "활동1 - 학생 9명의 문제를 모두 해결하기",
+            "칠판 4줄": "활동2 - 선생님 문제를 해결하고 10점 만들기",
+            "칠판 5줄": "활동3 - 칠판의 내용이 보이도록 사진 찍기",
+            "선생님 이름": "조기석 선생님",
+            "학생1 이름": "학생1",
+            "학생2 이름": "학생2",
+            "학생3 이름": "학생3",
+            "학생4 이름": "학생4",
+            "학생5 이름": "학생5",
+            "학생6 이름": "학생6",
+            "학생7 이름": "학생7",
+            "학생8 이름": "학생8",
+            "학생9 이름": "학생9",
+            "선생님 문제": "10+10=?",
+            "선생님 정답": "20",
+            "학생1 문제": "1+1=?",
+            "학생1 정답": "2",
+            "학생2 문제": "2+2=?",
+            "학생2 정답": "4",
+            "학생3 문제": "3+3=?",
+            "학생3 정답": "6",
+            "학생4 문제": "4+4=?",
+            "학생4 정답": "8",
+            "학생5 문제": "5+5=?",
+            "학생5 정답": "10",
+            "학생6 문제": "6+6=?",
+            "학생6 정답": "12",
+            "학생7 문제": "7+7=?",
+            "학생7 정답": "14",
+            "학생8 문제": "8+8=?",
+            "학생8 정답": "16",
+            "학생9 문제": "9+9=?",
+            "학생9 정답": "18"
+        };
+        
+        // 데이터 파싱 함수 (Google Sheets와 기본 데이터 공통 사용)
+        function parseData(dataMap) {
+            // 칠판 정보 추출 (칠판 1-5줄)
+            boardInfo = {
+                line1: dataMap['칠판 1줄'] || dataMap['질문 1줄'] || '칠판 1줄',
+                line2: dataMap['칠판 2줄'] || dataMap['질문 2줄'] || '칠판 2줄',
+                line3: dataMap['칠판 3줄'] || dataMap['질문 3줄'] || '칠판 3줄',
+                line4: dataMap['칠판 4줄'] || dataMap['질문 4줄'] || '칠판 4줄',
+                line5: dataMap['칠판 5줄'] || dataMap['질문 5줄'] || '칠판 5줄'
+            };
+            
+            // 캐릭터 이름 추출
+            const characterNames = {
+                '선생님': dataMap['선생님 이름'] || '선생님',
+                '학생1': dataMap['학생1 이름'] || '학생1',
+                '학생2': dataMap['학생2 이름'] || '학생2',
+                '학생3': dataMap['학생3 이름'] || '학생3',
+                '학생4': dataMap['학생4 이름'] || '학생4',
+                '학생5': dataMap['학생5 이름'] || '학생5',
+                '학생6': dataMap['학생6 이름'] || '학생6',
+                '학생7': dataMap['학생7 이름'] || '학생7',
+                '학생8': dataMap['학생8 이름'] || '학생8',
+                '학생9': dataMap['학생9 이름'] || '학생9'
+            };
+            
+            // 퀴즈 데이터 초기화
+            quizData = [];
+            characterQuizMap = {};
+            
+            // 문제/정답 추출
+            for (const [key, name] of Object.entries(characterNames)) {
+                const question = dataMap[`${key} 문제`];
+                const answer = dataMap[`${key} 정답`];
+                
+                if (question && answer) {
+                    const quiz = {
+                        character: key,  // "선생님", "학생1" 등
+                        characterName: name,  // "조기석 선생님", "학생1" 등
+                        question: question,
+                        answer: String(answer).replace('.0', '') // .0 제거
+                    };
+                    
+                    quizData.push(quiz);
+                    
+                    // 키("선생님", "학생1" 등)로 저장
+                    if (!characterQuizMap[key]) {
+                        characterQuizMap[key] = [];
+                    }
+                    characterQuizMap[key].push(quiz);
+                }
+            }
+        }
+        
+        // Google Sheets에서 데이터 가져오기
+        async function loadQuizData() {
+            const sheetId = '1GH3AT-sn_7S0bkvYNPgm-kdR7cX3-gkyd1p7zwvxOfc';
+            const gid = '0'; // 첫번째 시트
+            const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&gid=${gid}`;
+            
+            const loadingBar = document.getElementById('loading-bar');
+            const loadingStatus = document.getElementById('loading-status');
+            
+            try {
+                loadingBar.style.width = '30%';
+                loadingStatus.textContent = '데이터 다운로드 중...';
+                
+                const response = await fetch(url);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const csvText = await response.text();
+                
+                loadingBar.style.width = '60%';
+                loadingStatus.textContent = '데이터 파싱 중...';
+                
+                // CSV 파싱
+                const lines = csvText.split('\n').map(line => line.trim()).filter(line => line);
+                
+                console.log('전체 라인 수:', lines.length);
+                console.log('첫 10줄:', lines.slice(0, 10));
+                
+                // 데이터 구조 파싱
+                const dataMap = {};
+                
+                for (let i = 0; i < lines.length; i++) {
+                    const values = parseCSVLine(lines[i]);
+                    if (values.length >= 2) {
+                        const key = values[0].replace(/"/g, '').trim();
+                        const value = values[1].replace(/"/g, '').trim();
+                        dataMap[key] = value;
+                    }
+                }
+                
+                console.log('파싱된 데이터:', dataMap);
+                
+                // parseData 함수로 데이터 처리
+                parseData(dataMap);
+                
+                loadingBar.style.width = '100%';
+                loadingStatus.textContent = 'Google Sheets 로딩 완료!';
+                
+                console.log('퀴즈 데이터 로드 완료:', quizData.length, '개');
+                console.log('캐릭터별 데이터:', characterQuizMap);
+                console.log('칠판 정보:', boardInfo);
+                
+                // 칠판 업데이트
+                updateBlackboard(boardInfo);
+                
+                // 로딩 화면 숨기기
+                setTimeout(() => {
+                    document.getElementById('loading-screen').style.display = 'none';
+                }, 500);
+                
+                return true;
+            } catch (error) {
+                console.error('Google Sheets 로드 실패:', error);
+                console.log('기본 데이터로 전환합니다...');
+                
+                loadingBar.style.width = '60%';
+                loadingStatus.innerHTML = `Google Sheets 로드 실패<br><small>기본 데이터를 사용합니다</small>`;
+                loadingStatus.style.color = '#ffa500';
+                
+                // 기본 데이터 사용
+                parseData(defaultData);
+                
+                loadingBar.style.width = '100%';
+                loadingBar.style.background = '#ffa500';
+                loadingStatus.textContent = '기본 데이터 로드 완료!';
+                
+                console.log('기본 데이터 로드 완료:', quizData.length, '개');
+                console.log('캐릭터별 데이터:', characterQuizMap);
+                console.log('칠판 정보:', boardInfo);
+                
+                // 칠판 업데이트
+                updateBlackboard(boardInfo);
+                
+                // 로딩 화면 숨기기
+                setTimeout(() => {
+                    document.getElementById('loading-screen').style.display = 'none';
+                }, 1000);
+                
+                return true;
+            }
+        }
+        
+        // CSV 라인 파싱 함수 (따옴표 처리)
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            
+            for (let i = 0; i < line.length; i++) {
+                const char = line[i];
+                
+                if (char === '"') {
+                    inQuotes = !inQuotes;
+                } else if (char === ',' && !inQuotes) {
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+            }
+            
+            result.push(current);
+            return result;
+        }
+        
+        // Scene setup
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // 밝은 하늘색
+        scene.fog = new THREE.Fog(0xf5f5f5, 10, 50); // 원래 안개 색상
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 1.25, 5);
+        
+        const renderer = new THREE.WebGLRenderer({ 
+            antialias: true,
+            preserveDrawingBuffer: true  // 스크린샷을 위해 필요
+        });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+        
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+        scene.add(ambientLight);
+        
+        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+        directionalLight.position.set(10, 15, 10);
+        directionalLight.castShadow = true;
+        directionalLight.shadow.camera.near = 0.1;
+        directionalLight.shadow.camera.far = 50;
+        directionalLight.shadow.camera.left = -30;
+        directionalLight.shadow.camera.right = 30;
+        directionalLight.shadow.camera.top = 30;
+        directionalLight.shadow.camera.bottom = -30;
+        directionalLight.shadow.mapSize.width = 1024;
+        directionalLight.shadow.mapSize.height = 1024;
+        directionalLight.shadow.radius = 3; // 그림자 블러 적용
+        scene.add(directionalLight);
+        
+        // Floor with pattern
+        const floorGeometry = new THREE.PlaneGeometry(40, 40);
+        const floorMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xdcdcdc,
+            roughness: 0.7,
+            metalness: 0.1
+        });
+        const floor = new THREE.Mesh(floorGeometry, floorMaterial);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+        
+        // Add floor tiles pattern
+        const tileGeometry = new THREE.PlaneGeometry(2, 2);
+        const tileMaterial1 = new THREE.MeshStandardMaterial({ color: 0xc19a6b }); // 밝은 갈색
+        const tileMaterial2 = new THREE.MeshStandardMaterial({ color: 0xd2b48c }); // 연한 갈색
+        
+        for (let x = -20; x < 20; x += 2) {
+            for (let z = -20; z < 20; z += 2) {
+                const tile = new THREE.Mesh(tileGeometry, ((x + z) / 2) % 2 === 0 ? tileMaterial1 : tileMaterial2);
+                tile.position.set(x + 1, 0.01, z + 1);
+                tile.rotation.x = -Math.PI / 2;
+                tile.receiveShadow = true;
+                scene.add(tile);
+            }
+        }
+        
+        // Walls with windows
+        const wallMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xfafafa, // 더 밝은 회색
+            roughness: 0.9
+        });
+        
+        const wallThickness = 0.3; // 벽 두께
+        
+        // Back wall (no windows)
+        const backWall = new THREE.Mesh(
+            new THREE.BoxGeometry(40, 5, wallThickness),
+            wallMaterial
+        );
+        backWall.position.set(0, 2.5, -20);
+        backWall.receiveShadow = true;
+        backWall.castShadow = false; // 그림자 생성 비활성화
+        scene.add(backWall);
+        
+        // Front wall (no windows)
+        const frontWall = new THREE.Mesh(
+            new THREE.BoxGeometry(40, 5, wallThickness),
+            wallMaterial
+        );
+        frontWall.position.set(0, 2.5, 20);
+        frontWall.receiveShadow = true;
+        frontWall.castShadow = false; // 그림자 생성 비활성화
+        scene.add(frontWall);
+        
+        // Left wall with window holes (서쪽 벽)
+        // 위쪽 벽 (천장 아래)
+        const leftWallTop = new THREE.Mesh(
+            new THREE.BoxGeometry(wallThickness, 1, 40),
+            wallMaterial
+        );
+        leftWallTop.position.set(-20, 4.5, 0);
+        leftWallTop.receiveShadow = true;
+        leftWallTop.castShadow = false; // 그림자 생성 비활성화
+        scene.add(leftWallTop);
+        
+        // 아래쪽 벽 (바닥부터 시작)
+        const leftWallBottom = new THREE.Mesh(
+            new THREE.BoxGeometry(wallThickness, 1, 40),
+            wallMaterial
+        );
+        leftWallBottom.position.set(-20, 0.5, 0);
+        leftWallBottom.receiveShadow = true;
+        leftWallBottom.castShadow = false; // 그림자 생성 비활성화
+        scene.add(leftWallBottom);
+        
+        // 창문 사이 벽 조각들 (중간 높이 3)
+        // 창문 위치: z = -15, -5, 5, 15 (각 크기 6x3, 즉 z±3 범위)
+        // 창문1: z=-18~-12, 창문2: z=-8~-2, 창문3: z=2~8, 창문4: z=12~18
+        const leftWallSegments = [
+            { z: -19, width: 2 },     // 북쪽 끝 (z=-20~-18)
+            { z: -10, width: 4 },     // 1-2번 창문 사이 (z=-12~-8)
+            { z: 0, width: 4 },       // 2-3번 창문 사이 (z=-2~2)
+            { z: 10, width: 4 },      // 3-4번 창문 사이 (z=8~12)
+            { z: 19, width: 2 }       // 남쪽 끝 (z=18~20)
+        ];
+        
+        leftWallSegments.forEach(seg => {
+            const wallPiece = new THREE.Mesh(
+                new THREE.BoxGeometry(wallThickness, 3, seg.width),
+                wallMaterial
+            );
+            wallPiece.position.set(-20, 2.5, seg.z);
+            wallPiece.receiveShadow = true;
+            wallPiece.castShadow = false; // 그림자 생성 비활성화
+            scene.add(wallPiece);
+        });
+        
+        // Right wall with window holes (동쪽 벽)
+        // 위쪽 벽
+        const rightWallTop = new THREE.Mesh(
+            new THREE.BoxGeometry(wallThickness, 1, 40),
+            wallMaterial
+        );
+        rightWallTop.position.set(20, 4.5, 0);
+        rightWallTop.receiveShadow = true;
+        rightWallTop.castShadow = false; // 그림자 생성 비활성화
+        scene.add(rightWallTop);
+        
+        // 아래쪽 벽 (바닥부터 시작)
+        const rightWallBottom = new THREE.Mesh(
+            new THREE.BoxGeometry(wallThickness, 1, 40),
+            wallMaterial
+        );
+        rightWallBottom.position.set(20, 0.5, 0);
+        rightWallBottom.receiveShadow = true;
+        rightWallBottom.castShadow = false; // 그림자 생성 비활성화
+        scene.add(rightWallBottom);
+        
+        // 창문 사이 벽 조각들
+        const rightWallSegments = [
+            { z: -19, width: 2 },     // 북쪽 끝 (z=-20~-18)
+            { z: -10, width: 4 },     // 1-2번 창문 사이 (z=-12~-8)
+            { z: 0, width: 4 },       // 2-3번 창문 사이 (z=-2~2)
+            { z: 10, width: 4 },      // 3-4번 창문 사이 (z=8~12)
+            { z: 19, width: 2 }       // 남쪽 끝 (z=18~20)
+        ];
+        
+        rightWallSegments.forEach(seg => {
+            const wallPiece = new THREE.Mesh(
+                new THREE.BoxGeometry(wallThickness, 3, seg.width),
+                wallMaterial
+            );
+            wallPiece.position.set(20, 2.5, seg.z);
+            wallPiece.receiveShadow = true;
+            wallPiece.castShadow = false; // 그림자 생성 비활성화
+            scene.add(wallPiece);
+        });
+        
+        // Office furniture
+        const woodMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0xb4e7ce, // 파스텔 녹색
+            roughness: 0.6,
+            metalness: 0.1
+        });
+        
+        const metalMaterial = new THREE.MeshStandardMaterial({
+            color: 0x808080, // 회색
+            roughness: 0.3,
+            metalness: 0.8
+        });
+        
+        const lightGreyMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffffff, // 흰색 (가장 밝게)
+            roughness: 0.3,
+            metalness: 0.5
+        });
+        
+        // Create detailed desks
+        function createDesk(x, z) {
+            const deskGroup = new THREE.Group();
+            
+            // Desk top
+            const deskTop = new THREE.Mesh(
+                new THREE.BoxGeometry(3, 0.1, 1.5),
+                woodMaterial
+            );
+            deskTop.position.y = 0.75;
+            deskTop.castShadow = true;
+            deskTop.receiveShadow = true;
+            deskGroup.add(deskTop);
+            
+            // Metal frame
+            const frameGeometry = new THREE.BoxGeometry(0.05, 0.7, 0.05);
+            const framePositions = [
+                [-1.45, 0.35, -0.7],
+                [1.45, 0.35, -0.7],
+                [-1.45, 0.35, 0.7],
+                [1.45, 0.35, 0.7]
+            ];
+            
+            framePositions.forEach(pos => {
+                const frame = new THREE.Mesh(frameGeometry, metalMaterial);
+                frame.position.set(...pos);
+                frame.castShadow = true;
+                deskGroup.add(frame);
+            });
+            
+            // Computer monitor base
+            const monitorBase = new THREE.Mesh(
+                new THREE.CylinderGeometry(0.15, 0.15, 0.05, 16),
+                lightGreyMaterial
+            );
+            monitorBase.position.set(0, 0.82, 0);
+            monitorBase.castShadow = true;
+            monitorBase.receiveShadow = true;
+            deskGroup.add(monitorBase);
+            
+            const monitorStand = new THREE.Mesh(
+                new THREE.BoxGeometry(0.05, 0.3, 0.05),
+                lightGreyMaterial
+            );
+            monitorStand.position.set(0, 0.97, 0);
+            monitorStand.castShadow = true;
+            monitorStand.receiveShadow = true;
+            deskGroup.add(monitorStand);
+            
+            // Monitor body (밝은 회색)
+            const monitorBody = new THREE.Mesh(
+                new THREE.BoxGeometry(1.2, 0.7, 0.05),
+                lightGreyMaterial
+            );
+            monitorBody.position.set(0, 1.3, 0);
+            monitorBody.castShadow = true;
+            monitorBody.receiveShadow = true;
+            deskGroup.add(monitorBody);
+            
+            // Monitor screen (검정색 액정)
+            const monitorScreen = new THREE.Mesh(
+                new THREE.BoxGeometry(1.1, 0.6, 0.02),
+                new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 0.1, metalness: 0.5 })
+            );
+            monitorScreen.position.set(0, 1.3, 0.035);
+            monitorScreen.castShadow = true;
+            monitorScreen.receiveShadow = true;
+            deskGroup.add(monitorScreen);
+            
+            // 이모지 표시용 메시 저장
+            deskGroup.userData.monitorScreen = monitorScreen;
+            deskGroup.userData.emojiMesh = null; // 나중에 이모지 메시 저장
+            
+            // Keyboard (가로 2배, 위치 조정)
+            const keyboard = new THREE.Mesh(
+                new THREE.BoxGeometry(0.8, 0.02, 0.15),
+                lightGreyMaterial
+            );
+            keyboard.position.set(0, 0.81, 0.5);
+            keyboard.castShadow = true;
+            keyboard.receiveShadow = true;
+            deskGroup.add(keyboard);
+            
+            deskGroup.position.set(x, 0, z);
+            return deskGroup;
+        }
+        
+        // 책상 모니터에 이모지 표시 함수
+        function showEmojiOnDesk(deskX, deskZ, emoji) {
+            // 해당 위치의 책상 찾기
+            const desk = desks.find(d => 
+                Math.abs(d.position.x - deskX) < 0.1 && 
+                Math.abs(d.position.z - deskZ) < 0.1
+            );
+            
+            if (!desk) return;
+            
+            // 기존 이모지 제거
+            if (desk.userData.emojiMesh) {
+                desk.remove(desk.userData.emojiMesh);
+            }
+            
+            // 캔버스에 이모지 그리기
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.font = 'bold 180px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(emoji, canvas.width / 2, canvas.height / 2);
+            
+            // 텍스처 생성
+            const texture = new THREE.CanvasTexture(canvas);
+            const material = new THREE.MeshBasicMaterial({ 
+                map: texture,
+                transparent: true
+            });
+            
+            // 모니터 화면 크기에 맞게 메시 생성
+            const emojiMesh = new THREE.Mesh(
+                new THREE.PlaneGeometry(1.1, 0.6),
+                material
+            );
+            emojiMesh.position.set(0, 1.3, 0.055); // 모니터 스크린 앞
+            desk.add(emojiMesh);
+            desk.userData.emojiMesh = emojiMesh;
+        }
+        
+        // Add desks
+        const desk1 = createDesk(-10, -10);
+        const desk2 = createDesk(0, -10);
+        const desk3 = createDesk(10, -10);
+        const desk4 = createDesk(-10, 0);
+        const desk5 = createDesk(0, 0);
+        const desk6 = createDesk(10, 0);
+        const desk7 = createDesk(-10, 10);
+        const desk8 = createDesk(0, 10);
+        const desk9 = createDesk(10, 10);
+        scene.add(desk1, desk2, desk3, desk4, desk5, desk6, desk7, desk8, desk9);
+        
+        // 책상 배열 (충돌 감지용)
+        const desks = [desk1, desk2, desk3, desk4, desk5, desk6, desk7, desk8, desk9];
+        
+        // Add whiteboards with funny drawings
+        const blackboardMaterial = new THREE.MeshStandardMaterial({ 
+            color: 0x1a1a1a, // 검정색 (약간 밝게)
+            roughness: 0.8,
+            metalness: 0.1
+        });
+        
+        const blackboard = new THREE.Mesh(
+            new THREE.BoxGeometry(9, 3, 0.1),
+            blackboardMaterial
+        );
+        blackboard.position.set(0, 2.5, -19.8);
+        blackboard.castShadow = true;
+        scene.add(blackboard);
+        
+        // 칠판 텍스트 메시 (나중에 업데이트)
+        let blackboardWithText = null;
+        
+        // 칠판 업데이트 함수
+        function updateBlackboard(info) {
+            // 기존 칠판 텍스트 제거
+            if (blackboardWithText) {
+                scene.remove(blackboardWithText);
+            }
+            
+            // 칠판에 텍스트 추가
+            const blackboardCanvas = document.createElement('canvas');
+            blackboardCanvas.width = 2048;
+            blackboardCanvas.height = 1024;
+            const blackboardCtx = blackboardCanvas.getContext('2d');
+            
+            // 배경 (칠판 색상)
+            blackboardCtx.fillStyle = '#1a1a1a';
+            blackboardCtx.fillRect(0, 0, blackboardCanvas.width, blackboardCanvas.height);
+            
+            // 텍스트 설정
+            blackboardCtx.textAlign = 'center';
+            blackboardCtx.textBaseline = 'middle';
+            
+            // 1줄: 단원명 (흰색, 큰 폰트)
+            blackboardCtx.fillStyle = '#ffffff';
+            blackboardCtx.font = 'bold 100px "Noto Sans KR", sans-serif';
+            blackboardCtx.fillText(info.line1, blackboardCanvas.width / 2, 180);
+            
+            // 2줄: 학습주제 (노란색, 큰 폰트)
+            blackboardCtx.fillStyle = '#ffeb3b';
+            blackboardCtx.font = 'bold 80px "Noto Sans KR", sans-serif';
+            blackboardCtx.fillText(info.line2, blackboardCanvas.width / 2, 320);
+            
+            // 3-4-5줄: 활동 (흰색, 작은 폰트)
+            blackboardCtx.fillStyle = '#ffffff';
+            blackboardCtx.font = '60px "Noto Sans KR", sans-serif';
+            blackboardCtx.fillText(info.line3, blackboardCanvas.width / 2, 520);
+            blackboardCtx.fillText(info.line4, blackboardCanvas.width / 2, 650);
+            blackboardCtx.fillText(info.line5, blackboardCanvas.width / 2, 780);
+            
+            // 텍스처 생성 및 적용
+            const blackboardTexture = new THREE.CanvasTexture(blackboardCanvas);
+            const blackboardTextMaterial = new THREE.MeshStandardMaterial({ 
+                map: blackboardTexture,
+                roughness: 0.8,
+                metalness: 0.1
+            });
+            
+            blackboardWithText = new THREE.Mesh(
+                new THREE.BoxGeometry(9, 3, 0.1),
+                blackboardTextMaterial
+            );
+            blackboardWithText.position.set(0, 2.5, -19.79); // 칠판보다 약간 앞으로
+            scene.add(blackboardWithText);
+        }
+        
+        // 초기 칠판 (데이터 로드 전)
+        updateBlackboard({
+            line1: '데이터 로딩 중...',
+            line2: '',
+            line3: '',
+            line4: '',
+            line5: ''
+        });
+        
+        // Character creation with more detail
+        const characters = [];
+        
+        function createCharacter(name, role, x, z, shirtColor, characterData) {
+            const group = new THREE.Group();
+            
+            // Torso
+            const torsoGeometry = new THREE.CylinderGeometry(0.23, 0.3, 0.6, 8);
+            const torsoMaterial = new THREE.MeshStandardMaterial({ color: shirtColor });
+            const torso = new THREE.Mesh(torsoGeometry, torsoMaterial);
+            torso.position.y = 0.7;
+            torso.castShadow = true;
+            group.add(torso);
+            
+            // Arms (어깨에서 회전하도록 설정)
+            const armGeometry = new THREE.CylinderGeometry(0.08, 0.08, 0.6, 6);
+            const armMaterial = new THREE.MeshStandardMaterial({ color: shirtColor });
+            
+            // 팔을 컨테이너에 넣어서 회전 중심을 어깨로 설정
+            const leftArmContainer = new THREE.Group();
+            leftArmContainer.position.set(-0.28, 1.0, 0); // 몸통 쪽으로 이동 (-0.33 → -0.28)
+            
+            const leftArm = new THREE.Mesh(armGeometry, armMaterial);
+            leftArm.position.y = -0.3; // 팔을 아래로 오프셋 (회전 중심이 위에 있도록)
+            leftArm.castShadow = true;
+            leftArmContainer.add(leftArm);
+            leftArmContainer.rotation.z = -Math.PI / 12; // 15도 벌어짐 (180/12 = 15)
+            group.add(leftArmContainer);
+            
+            const rightArmContainer = new THREE.Group();
+            rightArmContainer.position.set(0.28, 1.0, 0); // 몸통 쪽으로 이동 (0.33 → 0.28)
+            
+            const rightArm = new THREE.Mesh(armGeometry, armMaterial);
+            rightArm.position.y = -0.3; // 팔을 아래로 오프셋 (회전 중심이 위에 있도록)
+            rightArm.castShadow = true;
+            rightArmContainer.add(rightArm);
+            rightArmContainer.rotation.z = Math.PI / 12; // 15도 벌어짐 (180/12 = 15)
+            group.add(rightArmContainer);
+            
+            // Legs
+            const legGeometry = new THREE.CylinderGeometry(0.1, 0.1, 0.6, 6);
+            const legMaterial = new THREE.MeshStandardMaterial({ color: 0x2c3e50 });
+            
+            const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+            leftLeg.position.set(-0.15, 0.3, 0);
+            group.add(leftLeg);
+            
+            const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+            rightLeg.position.set(0.15, 0.3, 0);
+            group.add(rightLeg);
+            
+            // Head
+            const headGeometry = new THREE.SphereGeometry(0.25, 8, 6);
+            const headMaterial = new THREE.MeshStandardMaterial({ color: 0xffe4c4 }); // 더 밝은 피부색 (Bisque)
+            const head = new THREE.Mesh(headGeometry, headMaterial);
+            head.position.y = 1.25;
+            head.castShadow = true;
+            group.add(head);
+            
+            // Hair
+            const hairGeometry = new THREE.SphereGeometry(0.27, 8, 6);
+            const hairMaterial = new THREE.MeshStandardMaterial({ color: shirtColor });
+            const hair = new THREE.Mesh(hairGeometry, hairMaterial);
+            hair.position.y = 1.38; // 0.03 위로 이동 (1.35 → 1.38)
+            hair.scale.y = 0.6;
+            group.add(hair);
+            
+            // Eyes
+            const eyeGeometry = new THREE.SphereGeometry(0.03, 4, 4);
+            const eyeMaterial = new THREE.MeshStandardMaterial({ color: 0x000000 });
+            
+            const leftEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            leftEye.position.set(-0.08, 1.25, 0.22);
+            group.add(leftEye);
+            
+            const rightEye = new THREE.Mesh(eyeGeometry, eyeMaterial);
+            rightEye.position.set(0.08, 1.25, 0.22);
+            group.add(rightEye);
+            
+            // Name label
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            // 이름 길이 측정
+            context.font = 'bold 24px "Noto Sans KR", sans-serif';
+            const nameWidth = context.measureText(name).width;
+            const padding = 20; // 좌우 여백
+            const canvasWidth = Math.max(nameWidth + padding * 2, 100); // 최소 폭 100
+            const canvasHeight = 50;
+            
+            canvas.width = canvasWidth;
+            canvas.height = canvasHeight;
+            
+            // 배경 (흰색 반투명)
+            context.fillStyle = 'rgba(255, 255, 255, 0.9)';
+            context.fillRect(0, 0, canvasWidth, canvasHeight);
+            
+            // 이름 텍스트 (가운데 정렬)
+            context.fillStyle = 'black';
+            context.font = 'bold 24px "Noto Sans KR", sans-serif';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            context.fillText(name, canvasWidth / 2, canvasHeight / 2);
+            
+            const texture = new THREE.CanvasTexture(canvas);
+            const labelMaterial = new THREE.SpriteMaterial({ map: texture });
+            const label = new THREE.Sprite(labelMaterial);
+            
+            // 머리카락 제일 윗부분에서 0.1 위 + 0.2 추가 상승
+            // 머리카락 중심: y = 1.38, 반지름: 0.27, y scale: 0.6
+            // 제일 윗부분: 1.38 + (0.27 * 0.6) = 1.542
+            label.position.y = 1.542 + 0.1 + 0.2; // 1.842
+            
+            // 라벨 크기를 이름 길이에 비례하여 조절
+            const labelWidth = canvasWidth / 128; // 기본 비율 조정
+            const labelHeight = canvasHeight / 128;
+            label.scale.set(labelWidth, labelHeight, 1);
+            
+            group.add(label);
+            
+            group.position.set(x, 0, z);
+            
+            // 북쪽(z=-20 방향)을 바라보도록 180도 회전
+            group.rotation.y = Math.PI;
+            
+            group.userData = { 
+                name, 
+                role, 
+                conversations: [],
+                initialPosition: new THREE.Vector3(x, 0, z),
+                initialized: false, // 최초 방향 설정 여부
+                stopUntil: null, // 정지 시간 (플레이어 충돌 시)
+                speed: 2.5, // 이동 속도
+                isDancing: false,
+                hasCoffee: Math.random() > 0.5,
+                stuckInDoor: false,
+                tripChance: 0.001,
+                leftArm: leftArmContainer, // 컨테이너 참조
+                rightArm: rightArmContainer, // 컨테이너 참조
+                ...characterData
+            };
+            
+            characters.push(group);
+            return group;
+        }
+        
+        // 학생 색상 팔레트 (중간 채도의 부드러운 톤 9색)
+        const studentColors = [
+            0xe8e8e8, // 밝은 회색 (부드러운 흰색)
+            0xff6b6b, // 코랄 레드 (적당한 빨강)
+            0x4dabf7, // 밝은 블루 (적당한 파랑)
+            0xffd43b, // 선샤인 옐로우 (적당한 노랑)
+            0x51cf66, // 민트 그린 (적당한 초록)
+            0xff922b, // 탠저린 (적당한 오렌지)
+            0x9775fa, // 바이올렛 (적당한 보라)
+            0xff6b9d, // 로즈 핑크 (적당한 핑크)
+            0x3bc9db  // 시안 블루 (적당한 하늘색)
+        ];
+        
+        // 배열 섞기 함수 (Fisher-Yates shuffle)
+        function shuffleArray(array) {
+            const shuffled = [...array];
+            for (let i = shuffled.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+            }
+            return shuffled;
+        }
+        
+        // 학생 색상 랜덤 섞기
+        const shuffledColors = shuffleArray(studentColors);
+        
+        // Add characters with varied appearances and quirks
+        // 선생님: 화이트보드(0, 0, -19.8)에서 남쪽(Z+)으로 5
+        // 아주 진한 회색
+        const teacher = createCharacter('선생님', '', 0, -14.8, 0x404040, {
+            hairColor: 0x404040
+        });
+        teacher.userData.originalPosition = { x: 0, z: -14.8 };
+        teacher.userData.completed = false;
+        teacher.userData.deskPosition = null; // 선생님은 책상이 없음
+        
+        // 학생들: 각 책상에서 남쪽(Z+)으로 2
+        // 랜덤 색상 적용 (9명에게 9가지 색상을 중복 없이 배정)
+        // 책상1: (-10, -10) → 학생1: (-10, -8)
+        const student1 = createCharacter('학생1', '', -10, -8, shuffledColors[0], {
+            hairColor: shuffledColors[0]
+        });
+        student1.userData.originalPosition = { x: -10, z: -8 };
+        student1.userData.completed = false;
+        student1.userData.deskPosition = { x: -10, z: -10 };
+        
+        // 책상2: (0, -10) → 학생2: (0, -8)
+        const student2 = createCharacter('학생2', '', 0, -8, shuffledColors[1], {
+            hairColor: shuffledColors[1]
+        });
+        student2.userData.originalPosition = { x: 0, z: -8 };
+        student2.userData.completed = false;
+        student2.userData.deskPosition = { x: 0, z: -10 };
+        
+        // 책상3: (10, -10) → 학생3: (10, -8)
+        const student3 = createCharacter('학생3', '', 10, -8, shuffledColors[2], {
+            hairColor: shuffledColors[2]
+        });
+        student3.userData.originalPosition = { x: 10, z: -8 };
+        student3.userData.completed = false;
+        student3.userData.deskPosition = { x: 10, z: -10 };
+        
+        // 책상4: (-10, 0) → 학생4: (-10, 2)
+        const student4 = createCharacter('학생4', '', -10, 2, shuffledColors[3], {
+            hairColor: shuffledColors[3]
+        });
+        student4.userData.originalPosition = { x: -10, z: 2 };
+        student4.userData.completed = false;
+        student4.userData.deskPosition = { x: -10, z: 0 };
+        
+        // 책상5: (0, 0) → 학생5: (0, 2)
+        const student5 = createCharacter('학생5', '', 0, 2, shuffledColors[4], {
+            hairColor: shuffledColors[4]
+        });
+        student5.userData.originalPosition = { x: 0, z: 2 };
+        student5.userData.completed = false;
+        student5.userData.deskPosition = { x: 0, z: 0 };
+        
+        // 책상6: (10, 0) → 학생6: (10, 2)
+        const student6 = createCharacter('학생6', '', 10, 2, shuffledColors[5], {
+            hairColor: shuffledColors[5]
+        });
+        student6.userData.originalPosition = { x: 10, z: 2 };
+        student6.userData.completed = false;
+        student6.userData.deskPosition = { x: 10, z: 0 };
+        
+        // 책상7: (-10, 10) → 학생7: (-10, 12)
+        const student7 = createCharacter('학생7', '', -10, 12, shuffledColors[6], {
+            hairColor: shuffledColors[6]
+        });
+        student7.userData.originalPosition = { x: -10, z: 12 };
+        student7.userData.completed = false;
+        student7.userData.deskPosition = { x: -10, z: 10 };
+        
+        // 책상8: (0, 10) → 학생8: (0, 12)
+        const student8 = createCharacter('학생8', '', 0, 12, shuffledColors[7], {
+            hairColor: shuffledColors[7]
+        });
+        student8.userData.originalPosition = { x: 0, z: 12 };
+        student8.userData.completed = false;
+        student8.userData.deskPosition = { x: 0, z: 10 };
+        
+        // 책상9: (10, 10) → 학생9: (10, 12)
+        const student9 = createCharacter('학생9', '', 10, 12, shuffledColors[8], {
+            hairColor: shuffledColors[8]
+        });
+        student9.userData.originalPosition = { x: 10, z: 12 };
+        student9.userData.completed = false;
+        student9.userData.deskPosition = { x: 10, z: 10 };
+        
+        scene.add(teacher, student1, student2, student3, student4, student5, student6, student7, student8, student9);
+        
+        // 선생님 크기를 130%로 설정
+        teacher.scale.set(1.3, 1.3, 1.3);
+        
+        // 학생들 크기를 110%로 설정
+        [student1, student2, student3, student4, student5, student6, student7, student8, student9].forEach(character => {
+            character.scale.set(1.1, 1.1, 1.1);
+        });
+        
+        // Player controls
+        // 남쪽 벽 중앙(0, 0, 20)에서 북쪽으로 5 이동 → (0, 1.6, 15)
+        const player = {
+            position: new THREE.Vector3(0, 1.25, 15),
+            velocity: new THREE.Vector3(0, 0, 0),
+            speed: 0.05, // 속도 50% 감소
+            isDancing: false
+        };
+        
+        // 캐릭터 움직임 활성화 플래그
+        let charactersCanMove = false;
+        
+        const keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            keys[e.key] = true; // Store original key for arrow keys
+            
+            // Prevent arrow keys from scrolling the page
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+            keys[e.key] = false; // Clear original key for arrow keys
+        });
+        
+        // UI 버튼 기능 설정
+        // 네비게이션 버튼
+        const navButtons = {
+            up: document.getElementById('nav-up'),
+            down: document.getElementById('nav-down'),
+            left: document.getElementById('nav-left'),
+            right: document.getElementById('nav-right')
+        };
+        
+        // 버튼 눌렀을 때 키 상태 변경
+        Object.keys(navButtons).forEach(direction => {
+            const button = navButtons[direction];
+            const arrowKey = 'Arrow' + direction.charAt(0).toUpperCase() + direction.slice(1);
+            
+            // 마우스 이벤트
+            button.addEventListener('mousedown', () => {
+                keys[arrowKey] = true;
+            });
+            button.addEventListener('mouseup', () => {
+                keys[arrowKey] = false;
+            });
+            button.addEventListener('mouseleave', () => {
+                keys[arrowKey] = false;
+            });
+            
+            // 터치 이벤트
+            button.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                keys[arrowKey] = true;
+            });
+            button.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                keys[arrowKey] = false;
+            });
+        });
+        
+        // 스크린샷 버튼
+        document.getElementById('screenshot-button').addEventListener('click', () => {
+            try {
+                // UI 요소들 숨기기
+                const uiElements = [
+                    document.getElementById('screenshot-button'),
+                    document.getElementById('fullscreen-button'),
+                    document.getElementById('navigation-controls'),
+                    document.getElementById('progress-bar')
+                ];
+                
+                uiElements.forEach(el => {
+                    if (el) el.classList.add('hide-ui');
+                });
+                
+                // 잠시 대기 후 캡처 (UI가 완전히 숨겨지도록)
+                setTimeout(() => {
+                    const canvas = renderer.domElement;
+                    canvas.toBlob((blob) => {
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = '교실_시뮬레이터_' + new Date().getTime() + '.jpg';
+                        a.click();
+                        URL.revokeObjectURL(url);
+                        
+                        // UI 요소들 다시 표시
+                        uiElements.forEach(el => {
+                            if (el) el.classList.remove('hide-ui');
+                        });
+                    }, 'image/jpeg', 0.95);
+                }, 50);
+            } catch (error) {
+                console.error('스크린샷 저장 실패:', error);
+                // 오류 발생 시에도 UI 복구
+                const uiElements = [
+                    document.getElementById('screenshot-button'),
+                    document.getElementById('fullscreen-button'),
+                    document.getElementById('navigation-controls'),
+                    document.getElementById('progress-bar')
+                ];
+                uiElements.forEach(el => {
+                    if (el) el.classList.remove('hide-ui');
+                });
+            }
+        });
+        
+        // 전체화면 버튼
+        document.getElementById('fullscreen-button').addEventListener('click', () => {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.error('전체화면 전환 실패:', err);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        });
+        
+        // 진행 상태 업데이트 함수
+        function updateProgressBar() {
+            const completedCount = characters.filter(c => c.userData.completed).length;
+            const progressBar = document.getElementById('progress-bar');
+            
+            // 숫자를 그대로 표시 (1, 2, ... 10)
+            progressBar.textContent = completedCount.toString();
+        }
+        
+        // Character movement AI with chaos
+        // 허용된 회전 각도 (라디안)
+        const allowedAngles = [-120, -90, -60, -30, 30, 60, 90, 120].map(deg => deg * Math.PI / 180);
+        
+        // 랜덤 각도 선택 함수
+        function getRandomAngle() {
+            return allowedAngles[Math.floor(Math.random() * allowedAngles.length)];
+        }
+        
+        function updateCharacterMovement(character, deltaTime) {
+            // 사용자가 움직이기 전까지 캐릭터 정지
+            if (!charactersCanMove) {
+                return;
+            }
+            
+            // 완료된 캐릭터가 집으로 돌아가는 중
+            if (character.userData.returningHome) {
+                const targetPos = character.userData.targetPosition;
+                const dx = targetPos.x - character.position.x;
+                const dz = targetPos.z - character.position.z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+                
+                // 목표 지점에 도착했는지 확인 (0.1 거리 이내)
+                if (distance < 0.1) {
+                    // 정확한 위치로 설정
+                    character.position.x = targetPos.x;
+                    character.position.z = targetPos.z;
+                    
+                    // 방향 설정: 선생님은 남쪽(0), 학생은 북쪽(Math.PI)
+                    if (character.userData.name === '선생님') {
+                        character.rotation.y = 0; // 남쪽
+                    } else {
+                        character.rotation.y = Math.PI; // 북쪽
+                    }
+                    
+                    // 팔을 원래 위치로
+                    character.userData.leftArm.rotation.x = 0;
+                    character.userData.rightArm.rotation.x = 0;
+                    
+                    // 집 도착 완료
+                    character.userData.returningHome = false;
+                    character.userData.initialized = false; // 다시 움직이지 않도록
+                    return;
+                }
+                
+                // 목표 지점을 향해 이동
+                const moveSpeed = 1.25; // 속도 50% 감소
+                const direction = new THREE.Vector3(dx, 0, dz).normalize();
+                character.position.add(direction.multiplyScalar(moveSpeed * deltaTime));
+                
+                // 목표 지점을 바라보도록 회전
+                const angle = Math.atan2(dx, dz);
+                character.rotation.y = angle;
+                
+                // 걷는 애니메이션 (팔 흔들기)
+                const walkSpeed = 8;
+                character.userData.leftArm.rotation.x = Math.sin(Date.now() * 0.005 * walkSpeed) * 0.5;
+                character.userData.rightArm.rotation.x = -Math.sin(Date.now() * 0.005 * walkSpeed) * 0.5;
+                
+                return;
+            }
+            
+            // 완료된 캐릭터는 움직이지 않음 (제자리에 정지)
+            if (character.userData.completed) {
+                character.userData.leftArm.rotation.x = 0;
+                character.userData.rightArm.rotation.x = 0;
+                return;
+            }
+            
+            // Don't move if this character is in conversation
+            if (character === currentCharacter) {
+                // Face the player
+                const lookTarget = new THREE.Vector3(player.position.x, character.position.y, player.position.z);
+                character.lookAt(lookTarget);
+                character.rotation.x = 0;
+                character.rotation.z = 0;
+                return;
+            }
+            
+            // 정지 중인 캐릭터 처리
+            if (character.userData.stopUntil && Date.now() < character.userData.stopUntil) {
+                // 정지 중에도 플레이어 방향 확인 (근처에 있으면 바라보기)
+                const dx = player.position.x - character.position.x;
+                const dz = player.position.z - character.position.z;
+                const distanceToPlayer = Math.sqrt(dx * dx + dz * dz);
+                
+                if (distanceToPlayer < 2) {
+                    const lookTarget = new THREE.Vector3(player.position.x, character.position.y, player.position.z);
+                    character.lookAt(lookTarget);
+                    character.rotation.x = 0;
+                    character.rotation.z = 0;
+                }
+                
+                // 정지 시 팔을 원래 위치로
+                character.userData.leftArm.rotation.x = 0;
+                character.userData.rightArm.rotation.x = 0;
+                return; // 정지 시간이 끝날 때까지 움직이지 않음
+            } else if (character.userData.stopUntil) {
+                // 정지 시간이 끝났으면 새로운 각도로 회전
+                const rotationAngle = getRandomAngle();
+                character.rotation.y += rotationAngle;
+                character.userData.stopUntil = null;
+            }
+            
+            // 최초 이동 시 랜덤 각도로 방향 설정
+            if (!character.userData.initialized) {
+                character.rotation.y = Math.random() * Math.PI * 2; // 초기 방향 랜덤
+                character.userData.initialized = true;
+            }
+            
+            // 이동 속도
+            const moveSpeed = 1.25; // deltaTime과 함께 사용 (50% 감소)
+            
+            // 현재 바라보는 방향으로 직진
+            const forwardDirection = new THREE.Vector3(
+                Math.sin(character.rotation.y),
+                0,
+                Math.cos(character.rotation.y)
+            );
+            
+            // 새로운 위치 계산
+            const newPosition = character.position.clone();
+            newPosition.add(forwardDirection.multiplyScalar(moveSpeed * deltaTime));
+            
+            // 충돌 감지 변수
+            let collisionDetected = false;
+            let playerCollision = false;
+            
+            // 1. 책상과의 충돌 감지
+            const deskCollisionDistance = 2.0;
+            for (let desk of desks) {
+                const dx = newPosition.x - desk.position.x;
+                const dz = newPosition.z - desk.position.z;
+                const distSq = dx * dx + dz * dz;
+                
+                if (distSq < deskCollisionDistance * deskCollisionDistance) {
+                    collisionDetected = true;
+                    break;
+                }
+            }
+            
+            // 2. 다른 캐릭터와의 충돌 감지
+            if (!collisionDetected) {
+                const characterCollisionDistance = 1.5;
+                for (let otherChar of characters) {
+                    if (otherChar === character) continue;
+                    
+                    const dx = newPosition.x - otherChar.position.x;
+                    const dz = newPosition.z - otherChar.position.z;
+                    const distSq = dx * dx + dz * dz;
+                    
+                    if (distSq < characterCollisionDistance * characterCollisionDistance) {
+                        collisionDetected = true;
+                        break;
+                    }
+                }
+            }
+            
+            // 3. 플레이어와의 충돌 감지
+            if (!collisionDetected) {
+                const playerCollisionDistance = 1.5;
+                const dx = newPosition.x - player.position.x;
+                const dz = newPosition.z - player.position.z;
+                const distSq = dx * dx + dz * dz;
+                
+                if (distSq < playerCollisionDistance * playerCollisionDistance) {
+                    playerCollision = true;
+                    collisionDetected = true;
+                }
+            }
+            
+            // 4. 경계와의 충돌 감지
+            if (Math.abs(newPosition.x) > 17 || Math.abs(newPosition.z) > 17) {
+                collisionDetected = true;
+            }
+            
+            // 충돌 처리
+            if (collisionDetected) {
+                // 모든 충돌 시 즉시 랜덤 각도로 회전 (플레이어 충돌도 동일)
+                const rotationAngle = getRandomAngle();
+                character.rotation.y += rotationAngle;
+            } else {
+                // 충돌이 없으면 이동
+                character.position.copy(newPosition);
+                
+                // Walking animation
+                const walkBounce = Math.sin(Date.now() * 0.01) * 0.05;
+                character.position.y = walkBounce;
+                
+                // Arm swinging animation
+                const armSwing = Math.sin(Date.now() * 0.01) * 0.3;
+                character.userData.leftArm.rotation.x = armSwing;
+                character.userData.rightArm.rotation.x = -armSwing;
+            }
+            
+            // 경계 내로 유지
+            character.position.x = Math.max(-17, Math.min(17, character.position.x));
+            character.position.z = Math.max(-17, Math.min(17, character.position.z));
+            
+            // 회전 고정 (X, Z축)
+            character.rotation.x = 0;
+            character.rotation.z = 0;
+        }
+        
+        // Dialogue system
+        let currentCharacter = null;
+        let nearbyCharacter = null;
+        const dialogueBox = document.getElementById('dialogue-box');
+        const dialogueName = document.getElementById('dialogue-name');
+        const dialogueContent = document.getElementById('dialogue-content');
+        const interactionPrompt = document.getElementById('interaction-prompt');
+        
+        // 대화 버튼 클릭/터치 이벤트
+        interactionPrompt.addEventListener('click', () => {
+            if (nearbyCharacter && !currentCharacter) {
+                openDialogue(nearbyCharacter);
+            }
+        });
+        
+        interactionPrompt.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // 터치 이벤트가 클릭으로 전환되는 것 방지
+            if (nearbyCharacter && !currentCharacter) {
+                openDialogue(nearbyCharacter);
+            }
+        });
+        
+        // 대화창 닫기 버튼 이벤트
+        const dialogueCloseBtn = document.getElementById('dialogue-close-btn');
+        
+        dialogueCloseBtn.addEventListener('click', () => {
+            dialogueBox.style.display = 'none';
+            currentCharacter = null;
+        });
+        
+        dialogueCloseBtn.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            dialogueBox.style.display = 'none';
+            currentCharacter = null;
+        });
+        
+        function getQuizForCharacter(character) {
+            const characterName = character.userData.name;
+            const quizzes = characterQuizMap[characterName];
+            
+            if (!quizzes || quizzes.length === 0) {
+                return {
+                    character: characterName,
+                    question: '아직 준비된 질문이 없습니다.',
+                    answer: ''
+                };
+            }
+            
+            // 랜덤하게 퀴즈 선택
+            const randomIndex = Math.floor(Math.random() * quizzes.length);
+            return quizzes[randomIndex];
+        }
+        
+        
+        let currentQuiz = null;
+        
+        function openDialogue(character) {
+            currentCharacter = character;
+            
+            // 선생님일 경우 학생 9명 완료 여부 체크
+            if (character.userData.name === '선생님') {
+                const allStudentsCompleted = characters
+                    .filter(c => c.userData.name !== '선생님')
+                    .every(c => c.userData.completed);
+                
+                if (!allStudentsCompleted) {
+                    // 학생 문제를 다 풀지 않았으면 입력 필드 표시 (이스터 에그용)
+                    dialogueBox.style.display = 'block';
+                    dialogueName.textContent = character.userData.name;
+                    dialogueContent.textContent = '교실에 있는 9명의 학생들 문제를 모두 풀고 다시 오세요.';
+                    
+                    // 입력 필드 표시 (이스터 에그용)
+                    document.getElementById('quiz-container').style.display = 'block';
+                    const answerInput = document.getElementById('answer-input');
+                    const submitButton = document.getElementById('submit-answer');
+                    const feedback = document.getElementById('feedback');
+                    answerInput.value = '';
+                    answerInput.disabled = false;
+                    submitButton.disabled = false; // 버튼 활성화
+                    answerInput.placeholder = '답을 입력하세요';
+                    feedback.style.display = 'none';
+                    
+                    // 임시 퀴즈 설정 (이스터 에그용)
+                    currentQuiz = {
+                        characterName: '선생님',
+                        question: '',
+                        answer: ''
+                    };
+                    
+                    // 선생님이 뒤돌아서기 (180도 회전)
+                    character.userData.stopUntil = Date.now() + 5000;
+                    character.rotation.y = Math.PI;
+                    
+                    setTimeout(() => {
+                        answerInput.focus();
+                    }, 100);
+                    
+                    return;
+                }
+            }
+            
+            dialogueBox.style.display = 'block';
+            
+            // 캐릭터에 맞는 퀴즈 가져오기
+            currentQuiz = getQuizForCharacter(character);
+            
+            // 캐릭터 이름 표시 (스프레드시트의 이름)
+            dialogueName.textContent = currentQuiz.characterName || character.userData.name;
+            
+            // 질문 표시
+            dialogueContent.textContent = currentQuiz.question;
+            
+            // 입력 필드 표시 및 초기화
+            document.getElementById('quiz-container').style.display = 'block';
+            const answerInput = document.getElementById('answer-input');
+            const submitButton = document.getElementById('submit-answer');
+            const feedback = document.getElementById('feedback');
+            answerInput.value = '';
+            answerInput.disabled = false;
+            submitButton.disabled = false; // 버튼 활성화
+            answerInput.placeholder = '정답을 입력하세요';
+            feedback.style.display = 'none';
+            
+            // 입력 필드에 포커스
+            setTimeout(() => {
+                answerInput.focus();
+            }, 100);
+        }
+        
+        
+        
+        // 색종이 생성 함수
+        function createConfetti() {
+            const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff00ff', '#00ffff', '#ffa500', '#ff69b4'];
+            
+            for (let i = 0; i < 100; i++) {
+                setTimeout(() => {
+                    const confetti = document.createElement('div');
+                    confetti.className = 'confetti';
+                    
+                    // 크기 다양화 (5px ~ 20px)
+                    const size = 5 + Math.random() * 15;
+                    confetti.style.width = size + 'px';
+                    confetti.style.height = size + 'px';
+                    
+                    // 위치
+                    confetti.style.left = Math.random() * window.innerWidth + 'px';
+                    confetti.style.top = '-20px';
+                    
+                    // 색상
+                    confetti.style.background = colors[Math.floor(Math.random() * colors.length)];
+                    
+                    // 투명도 (0.6 ~ 1.0) - 3D 느낌
+                    confetti.style.opacity = 0.6 + Math.random() * 0.4;
+                    
+                    // 애니메이션 시간 (2 ~ 4초)
+                    confetti.style.animationDuration = (2 + Math.random() * 2) + 's';
+                    confetti.style.animationDelay = (Math.random() * 0.5) + 's';
+                    
+                    // z-index로 원근감 (9990 ~ 9999)
+                    confetti.style.zIndex = Math.floor(9990 + Math.random() * 10);
+                    
+                    // 초기 회전 각도
+                    confetti.style.transform = 'rotate(' + (Math.random() * 360) + 'deg)';
+                    
+                    document.body.appendChild(confetti);
+                    
+                    setTimeout(() => confetti.remove(), 5000);
+                }, i * 30);
+            }
+        }
+        
+        // 모든 문제 해결 시 축하 애니메이션
+        let confettiInterval = null;
+        
+        function celebrateCompletion() {
+            // 축하 음악 재생
+            playCelebrationMusic();
+            
+            // 색종이 효과 - 계속 떨어지도록
+            createConfetti();
+            confettiInterval = setInterval(() => {
+                createConfetti();
+            }, 3000); // 3초마다 색종이 다시 생성
+            
+            // 축하 메시지 표시
+            const celebrationMessage = document.getElementById('celebration-message');
+            celebrationMessage.style.display = 'block';
+            
+            // 모든 캐릭터가 점프 (만세 동작 없이)
+            characters.forEach(character => {
+                let jumpCount = 0;
+                const jumpInterval = setInterval(() => {
+                    if (jumpCount >= 10) {
+                        clearInterval(jumpInterval);
+                        character.position.y = 0;
+                        return;
+                    }
+                    
+                    // 점프 애니메이션
+                    const jumpHeight = 0.5;
+                    const jumpDuration = 300;
+                    const startY = character.position.y;
+                    const startTime = Date.now();
+                    
+                    const animateJump = () => {
+                        const elapsed = Date.now() - startTime;
+                        const progress = elapsed / jumpDuration;
+                        
+                        if (progress < 0.5) {
+                            character.position.y = startY + jumpHeight * (progress * 2);
+                        } else if (progress < 1) {
+                            character.position.y = startY + jumpHeight * (2 - progress * 2);
+                        } else {
+                            character.position.y = startY;
+                            jumpCount++;
+                            return;
+                        }
+                        
+                        requestAnimationFrame(animateJump);
+                    };
+                    
+                    animateJump();
+                }, 400);
+            });
+            
+            // 5초 후 메시지 숨기기 (색종이는 계속 떨어짐)
+            setTimeout(() => {
+                celebrationMessage.style.display = 'none';
+            }, 5000);
+        }
+        
+        function checkAnswer() {
+            if (!currentQuiz || !currentCharacter) return;
+            
+            const answerInput = document.getElementById('answer-input');
+            const feedback = document.getElementById('feedback');
+            const submitButton = document.getElementById('submit-answer');
+            
+            const userAnswer = answerInput.value.trim();
+            
+            // 이스터 에그 체크 (선생님과 대화 중일 때)
+            if (currentCharacter.userData.name === '선생님' && 
+                (userAnswer === '조현지' || userAnswer === 'whguswl')) {
+                
+                // 오디오 컨텍스트 초기화
+                initAudioContext();
+                
+                // 모든 학생을 완료 상태로 설정
+                characters.forEach(character => {
+                    if (character.userData.name !== '선생님') {
+                        character.userData.completed = true;
+                        character.userData.returningHome = true;
+                        character.userData.targetPosition = character.userData.originalPosition;
+                        
+                        // 이름 라벨 제거
+                        const labelToRemove = character.children.find(child => child.isSprite);
+                        if (labelToRemove) {
+                            character.remove(labelToRemove);
+                        }
+                        
+                        // 책상에 이모지 표시
+                        if (character.userData.deskPosition) {
+                            showEmojiOnDesk(
+                                character.userData.deskPosition.x,
+                                character.userData.deskPosition.z,
+                                '🎉'
+                            );
+                        }
+                    }
+                });
+                
+                // 선생님도 완료 상태로 설정하고 원래 위치로 이동
+                currentCharacter.userData.completed = true;
+                currentCharacter.userData.returningHome = true;
+                currentCharacter.userData.targetPosition = currentCharacter.userData.originalPosition;
+                
+                // 진행 상태 업데이트
+                updateProgressBar();
+                
+                // 선생님 이름 라벨 제거
+                const teacherLabel = currentCharacter.children.find(child => child.isSprite);
+                if (teacherLabel) {
+                    currentCharacter.remove(teacherLabel);
+                }
+                
+                // 원래 위치를 바라보도록 회전
+                const originalPos = currentCharacter.userData.originalPosition;
+                const dx = originalPos.x - currentCharacter.position.x;
+                const dz = originalPos.z - currentCharacter.position.z;
+                const angle = Math.atan2(dx, dz);
+                currentCharacter.rotation.y = angle;
+                
+                feedback.style.display = 'block';
+                feedback.style.background = '#ffd700';
+                feedback.style.color = '#333';
+                feedback.textContent = '🌟 이스터 에그 발견! 모든 문제가 해결되었습니다!';
+                
+                playCorrectSound();
+                
+                setTimeout(() => {
+                    dialogueBox.style.display = 'none';
+                    currentCharacter = null;
+                    
+                    // 잠시 후 축하 애니메이션
+                    setTimeout(() => {
+                        celebrateCompletion();
+                    }, 2000);
+                }, 2000);
+                
+                return;
+            }
+            
+            const correctAnswer = currentQuiz.answer.trim();
+            
+            if (userAnswer === '') {
+                feedback.style.display = 'block';
+                feedback.style.background = '#fff3cd';
+                feedback.style.color = '#856404';
+                feedback.textContent = '답을 입력해주세요!';
+                return;
+            }
+            
+            // 정답 비교 (대소문자 무시, 공백 제거)
+            const isCorrect = userAnswer.toLowerCase() === correctAnswer.toLowerCase();
+            
+            answerInput.disabled = true;
+            submitButton.disabled = true;
+            
+            if (isCorrect) {
+                // 오디오 컨텍스트 초기화 및 정답 효과음
+                initAudioContext();
+                playCorrectSound();
+                
+                feedback.style.display = 'block';
+                feedback.style.background = '#d4edda';
+                feedback.style.color = '#155724';
+                feedback.textContent = '🎉 정답입니다!';
+                
+                // 캐릭터 완료 상태로 변경
+                currentCharacter.userData.completed = true;
+                currentCharacter.userData.returningHome = true; // 집으로 돌아가는 중
+                currentCharacter.userData.targetPosition = currentCharacter.userData.originalPosition;
+                
+                // 진행 상태 업데이트
+                updateProgressBar();
+                
+                // 원래 위치를 바라보도록 회전
+                const originalPos = currentCharacter.userData.originalPosition;
+                const dx = originalPos.x - currentCharacter.position.x;
+                const dz = originalPos.z - currentCharacter.position.z;
+                const angle = Math.atan2(dx, dz);
+                currentCharacter.rotation.y = angle;
+                
+                // 이름 라벨 제거 (children에서 Sprite 찾아서 제거)
+                const labelToRemove = currentCharacter.children.find(child => child.isSprite);
+                if (labelToRemove) {
+                    currentCharacter.remove(labelToRemove);
+                }
+                
+                // 책상 모니터에 이모지 표시 (학생만)
+                if (currentCharacter.userData.deskPosition) {
+                    showEmojiOnDesk(
+                        currentCharacter.userData.deskPosition.x,
+                        currentCharacter.userData.deskPosition.z,
+                        '🎉'
+                    );
+                }
+                
+                // 선생님 문제를 풀었는지 확인
+                const isTeacher = currentCharacter.userData.name === '선생님';
+                
+                // 2초 후 대화창 닫기
+                setTimeout(() => {
+                    dialogueBox.style.display = 'none';
+                    currentCharacter = null;
+                    
+                    // 선생님 문제를 풀었을 때만 축하 애니메이션
+                    if (isTeacher) {
+                        setTimeout(() => {
+                            celebrateCompletion();
+                        }, 2000);
+                    }
+                }, 2000);
+            } else {
+                // 오답 효과음
+                initAudioContext();
+                playWrongSound();
+                
+                feedback.style.display = 'block';
+                feedback.style.background = '#f8d7da';
+                feedback.style.color = '#721c24';
+                feedback.textContent = '❌ 틀렸습니다!';
+                
+                // 2초 후 새 문제 (버튼 다시 활성화)
+                setTimeout(() => {
+                    submitButton.disabled = false;
+                    openDialogue(currentCharacter);
+                }, 2000);
+            }
+        }
+        
+        // Set up custom question handlers
+        // DOM이 완전히 로드된 후 이벤트 리스너 등록
+        let answerInputElement = null;
+        let submitButtonElement = null;
+        
+        function setupEventListeners() {
+            answerInputElement = document.getElementById('answer-input');
+            submitButtonElement = document.getElementById('submit-answer');
+            
+            if (submitButtonElement && answerInputElement) {
+                // 중복 방지를 위해 기존 리스너 제거 후 재등록
+                submitButtonElement.removeEventListener('click', checkAnswer);
+                submitButtonElement.addEventListener('click', checkAnswer);
+                
+                answerInputElement.removeEventListener('keypress', handleEnterKey);
+                answerInputElement.addEventListener('keypress', handleEnterKey);
+            }
+        }
+        
+        function handleEnterKey(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                checkAnswer();
+            }
+        }
+        
+        // 페이지 로드 시 한 번 실행
+        setupEventListeners();
+        
+        // Animation loop
+        let lastTime = 0;
+        
+        function animate(currentTime) {
+            requestAnimationFrame(animate);
+            
+            const deltaTime = (currentTime - lastTime) / 1000;
+            lastTime = currentTime;
+            
+            // Update player movement
+            player.velocity.set(0, 0, 0);
+            
+            // 대화 중이 아닐 때만 이동 가능
+            if (!currentCharacter) {
+                // 방향키로 이동
+                if (keys['ArrowUp']) player.velocity.z = player.speed;
+                if (keys['ArrowDown']) player.velocity.z = -player.speed;
+                if (keys['ArrowLeft']) player.velocity.x = -player.speed;
+                if (keys['ArrowRight']) player.velocity.x = player.speed;
+            }
+            
+            // Update camera rotation based on mouse (좌우만)
+            camera.rotation.y = mouseX;
+            camera.rotation.x = 0; // 상하 회전 고정
+            
+            // Apply movement in camera direction
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            
+            const right = new THREE.Vector3(1, 0, 0);
+            right.applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+            
+            // 새로운 플레이어 위치 계산
+            const newPlayerPosition = player.position.clone();
+            newPlayerPosition.add(forward.multiplyScalar(player.velocity.z));
+            newPlayerPosition.add(right.multiplyScalar(player.velocity.x));
+            
+            // 플레이어가 움직였는지 확인 (velocity가 0이 아니면)
+            if (!charactersCanMove && (player.velocity.x !== 0 || player.velocity.z !== 0)) {
+                charactersCanMove = true;
+            }
+            
+            // 충돌 감지
+            let playerCollision = false;
+            
+            // 1. 책상과의 충돌 감지
+            const deskCollisionDistance = 1.8;
+            for (let desk of desks) {
+                const dx = newPlayerPosition.x - desk.position.x;
+                const dz = newPlayerPosition.z - desk.position.z;
+                const distSq = dx * dx + dz * dz; // 제곱근 생략 (최적화)
+                
+                if (distSq < deskCollisionDistance * deskCollisionDistance) {
+                    playerCollision = true;
+                    break;
+                }
+            }
+            
+            // 2. 캐릭터와의 충돌 감지
+            if (!playerCollision) {
+                const characterCollisionDistance = 1.5;
+                for (let character of characters) {
+                    const dx = newPlayerPosition.x - character.position.x;
+                    const dz = newPlayerPosition.z - character.position.z;
+                    const distSq = dx * dx + dz * dz;
+                    
+                    if (distSq < characterCollisionDistance * characterCollisionDistance) {
+                        playerCollision = true;
+                        break;
+                    }
+                }
+            }
+            
+            // 충돌이 없으면 이동
+            if (!playerCollision) {
+                player.position.copy(newPlayerPosition);
+            }
+            
+            // Keep player in bounds
+            player.position.x = Math.max(-18, Math.min(18, player.position.x));
+            player.position.z = Math.max(-18, Math.min(18, player.position.z));
+            
+            // Update camera position
+            camera.position.copy(player.position);
+            camera.rotation.z = 0;
+            camera.rotation.y = mouseX;
+            camera.rotation.x = 0; // 상하 회전 고정
+            
+            // Update character movement (대화 중이 아닐 때만)
+            if (!currentCharacter) {
+                characters.forEach(character => {
+                    updateCharacterMovement(character, deltaTime);
+                });
+            }
+            
+            // Check for nearby characters (수평 거리만 계산)
+            nearbyCharacter = null;
+            let minDistance = Infinity;
+            
+            characters.forEach(character => {
+                // y축을 무시하고 x, z 평면에서의 거리만 계산
+                const dx = player.position.x - character.position.x;
+                const dz = player.position.z - character.position.z;
+                const distance = Math.sqrt(dx * dx + dz * dz);
+                
+                if (distance < 2 && distance < minDistance) {
+                    minDistance = distance;
+                    nearbyCharacter = character;
+                }
+            });
+            
+            // Auto-close dialogue if player walks away (대화 중에는 플레이어가 움직이지 않으므로 불필요)
+            // 대화창은 X 버튼으로만 닫힘
+            
+            // Show/hide interaction prompt
+            if (nearbyCharacter && !currentCharacter && !nearbyCharacter.userData.completed) {
+                interactionPrompt.style.display = 'flex';
+                interactionPrompt.textContent = '대화하기';
+                
+                // 이미 정지 중인 다른 캐릭터가 있는지 확인
+                const alreadyStoppedCharacter = characters.find(char => 
+                    char.userData.stopUntil && Date.now() < char.userData.stopUntil
+                );
+                
+                // 이미 정지 중인 캐릭터가 없거나, 근처 캐릭터가 바로 그 캐릭터인 경우에만 설정
+                if (!alreadyStoppedCharacter || alreadyStoppedCharacter === nearbyCharacter) {
+                    // stopUntil이 설정되지 않았거나 이미 만료된 경우에만 새로 설정
+                    if (!nearbyCharacter.userData.stopUntil || Date.now() >= nearbyCharacter.userData.stopUntil) {
+                        // 캐릭터가 플레이어를 바라보게 설정
+                        const lookTarget = new THREE.Vector3(player.position.x, nearbyCharacter.position.y, player.position.z);
+                        nearbyCharacter.lookAt(lookTarget);
+                        nearbyCharacter.rotation.x = 0;
+                        nearbyCharacter.rotation.z = 0;
+                        
+                        // 2초간 정지 설정
+                        nearbyCharacter.userData.stopUntil = Date.now() + 2000;
+                    }
+                }
+            } else {
+                interactionPrompt.style.display = 'none';
+            }
+            
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Mouse look
+        let mouseX = 0;
+        let mouseY = 0;
+        
+        // Mouse drag for camera rotation
+        let isDragging = false;
+        let previousMouseX = 0;
+        
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            previousMouseX = e.clientX;
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const deltaX = e.clientX - previousMouseX;
+                mouseX -= deltaX * 0.005; // 마우스 드래그로 시점 회전
+                previousMouseX = e.clientX;
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+        
+        // Touch swipe for camera rotation (스마트패드/모바일)
+        let touchStartX = 0;
+        let isTouching = false;
+        
+        renderer.domElement.addEventListener('touchstart', (e) => {
+            // 한 손가락만 허용
+            if (e.touches.length === 1) {
+                isTouching = true;
+                touchStartX = e.touches[0].clientX;
+                e.preventDefault();
+            } else {
+                // 두 손가락 이상이면 터치 무시
+                isTouching = false;
+            }
+        });
+        
+        renderer.domElement.addEventListener('touchmove', (e) => {
+            // 한 손가락만 허용, 터치 중이어야 함
+            if (isTouching && e.touches.length === 1) {
+                const deltaX = e.touches[0].clientX - touchStartX;
+                mouseX -= deltaX * 0.005; // 터치 스와이프로 시점 회전
+                touchStartX = e.touches[0].clientX;
+                e.preventDefault();
+            } else if (e.touches.length > 1) {
+                // 두 손가락 이상이면 터치 중단
+                isTouching = false;
+            }
+        });
+        
+        renderer.domElement.addEventListener('touchend', (e) => {
+            // 모든 터치가 끝났을 때만 초기화
+            if (e.touches.length === 0) {
+                isTouching = false;
+            }
+        });
+        
+        renderer.domElement.addEventListener('touchcancel', () => {
+            // 터치가 취소되면 즉시 초기화
+            isTouching = false;
+        });
+        
+        
+        // 앱 시작 - 먼저 데이터 로드
+        loadQuizData().then(success => {
+            if (success) {
+                updateProgressBar(); // 초기 진행 상태 표시
+                animate(0);
+            } else {
+                console.error('데이터 로드 실패로 앱을 시작할 수 없습니다.');
+            }
+        });
+    </script>
+</body>
+</html>
