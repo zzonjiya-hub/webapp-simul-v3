@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>교실시뮬레이터 v3 - Google Sheets 연동</title>
+    <title>교실시뮬레이터 v3.1 - Google Sheets 연동</title>
     <!-- Noto Sans KR 폰트 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -630,6 +630,9 @@
         
         // 데이터 파싱 함수 (Google Sheets와 기본 데이터 공통 사용)
         function parseData(dataMap) {
+            console.log('=== parseData 시작 ===');
+            console.log('입력 dataMap:', dataMap);
+            
             // 칠판 정보 추출 (칠판 1-5줄)
             boardInfo = {
                 line1: dataMap['칠판 1줄'] || dataMap['질문 1줄'] || '칠판 1줄',
@@ -638,6 +641,8 @@
                 line4: dataMap['칠판 4줄'] || dataMap['질문 4줄'] || '칠판 4줄',
                 line5: dataMap['칠판 5줄'] || dataMap['질문 5줄'] || '칠판 5줄'
             };
+            
+            console.log('칠판 정보:', boardInfo);
             
             // 캐릭터 이름 추출 (전역 변수에 저장)
             characterNames = {
@@ -652,6 +657,8 @@
                 '학생8': dataMap['학생8 이름'] || '학생8',
                 '학생9': dataMap['학생9 이름'] || '학생9'
             };
+            
+            console.log('캐릭터 이름:', characterNames);
             
             // 퀴즈 데이터 초기화
             quizData = [];
@@ -679,6 +686,8 @@
                     characterQuizMap[key].push(quiz);
                 }
             }
+            
+            console.log('=== parseData 완료 ===');
         }
         
         // Google Sheets에서 데이터 가져오기
@@ -1219,14 +1228,22 @@
         
         // 캐릭터 이름 라벨 업데이트 함수
         function updateCharacterNames() {
-            characters.forEach(character => {
+            console.log('=== updateCharacterNames 시작 ===');
+            console.log('characters 배열 길이:', characters.length);
+            console.log('characterNames:', characterNames);
+            
+            characters.forEach((character, index) => {
                 const key = character.userData.name; // '선생님', '학생1' 등
                 const displayName = characterNames[key] || key;
+                
+                console.log(`캐릭터 ${index}: key=${key}, displayName=${displayName}`);
                 
                 // 캐릭터 그룹에서 라벨(Sprite) 찾기
                 const label = character.children.find(child => child instanceof THREE.Sprite);
                 
                 if (label) {
+                    console.log(`  → 라벨 발견, 업데이트 중: ${displayName}`);
+                    
                     // 새로운 캔버스로 라벨 텍스처 재생성
                     const canvas = document.createElement('canvas');
                     const context = canvas.getContext('2d');
@@ -1254,6 +1271,7 @@
                     
                     // 텍스처 업데이트
                     const texture = new THREE.CanvasTexture(canvas);
+                    label.material.map.dispose(); // 기존 텍스처 메모리 해제
                     label.material.map = texture;
                     label.material.needsUpdate = true;
                     
@@ -1261,8 +1279,12 @@
                     const labelWidth = canvasWidth / 128;
                     const labelHeight = canvasHeight / 128;
                     label.scale.set(labelWidth, labelHeight, 1);
+                } else {
+                    console.log(`  → 라벨 없음`);
                 }
             });
+            
+            console.log('=== updateCharacterNames 완료 ===');
         }
         
         // 초기 칠판 (데이터 로드 전)
@@ -1539,6 +1561,9 @@
         student9.userData.completed = false;
         student9.userData.deskPosition = { x: 10, z: 10 };
         student9.userData.name = '학생9'; // 키 저장
+        
+        // characters 배열에 모든 캐릭터 추가
+        characters.push(teacher, student1, student2, student3, student4, student5, student6, student7, student8, student9);
         
         scene.add(teacher, student1, student2, student3, student4, student5, student6, student7, student8, student9);
         
