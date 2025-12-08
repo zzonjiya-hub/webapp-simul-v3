@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>교실시뮬레이터 v3.1 - Google Sheets 연동</title>
+    <title>Anthropic 오피스 시뮬레이터 - 코미디 에디션</title>
     <!-- Noto Sans KR 폰트 -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -1656,9 +1656,9 @@
         });
         
         // 스크린샷 버튼
-        document.getElementById('screenshot-button').addEventListener('click', () => {
+        document.getElementById('screenshot-button').addEventListener('click', async () => {
             try {
-                // UI 요소들 숨기기
+                // 모든 UI 요소 숨기기 (점수 포함)
                 const uiElements = [
                     document.getElementById('screenshot-button'),
                     document.getElementById('fullscreen-button'),
@@ -1670,10 +1670,56 @@
                     if (el) el.classList.add('hide-ui');
                 });
                 
-                // 잠시 대기 후 캡처 (UI가 완전히 숨겨지도록)
+                // 잠시 대기 후 캡처
                 setTimeout(() => {
-                    const canvas = renderer.domElement;
-                    canvas.toBlob((blob) => {
+                    const webglCanvas = renderer.domElement;
+                    
+                    // 새 캔버스 생성 (WebGL + 점수)
+                    const finalCanvas = document.createElement('canvas');
+                    finalCanvas.width = webglCanvas.width;
+                    finalCanvas.height = webglCanvas.height;
+                    const ctx = finalCanvas.getContext('2d');
+                    
+                    // 1. WebGL 캔버스 복사
+                    ctx.drawImage(webglCanvas, 0, 0);
+                    
+                    // 2. 점수 그리기 (우측 하단)
+                    const score = document.getElementById('progress-bar').textContent;
+                    const margin = 30;
+                    const boxSize = 100;
+                    const x = finalCanvas.width - margin - boxSize;
+                    const y = finalCanvas.height - margin - boxSize;
+                    
+                    // 점수 박스 배경
+                    ctx.fillStyle = 'rgba(255, 255, 255, 0.15)';
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    ctx.lineWidth = 2;
+                    
+                    // 둥근 사각형 그리기
+                    const radius = 25;
+                    ctx.beginPath();
+                    ctx.moveTo(x + radius, y);
+                    ctx.lineTo(x + boxSize - radius, y);
+                    ctx.quadraticCurveTo(x + boxSize, y, x + boxSize, y + radius);
+                    ctx.lineTo(x + boxSize, y + boxSize - radius);
+                    ctx.quadraticCurveTo(x + boxSize, y + boxSize, x + boxSize - radius, y + boxSize);
+                    ctx.lineTo(x + radius, y + boxSize);
+                    ctx.quadraticCurveTo(x, y + boxSize, x, y + boxSize - radius);
+                    ctx.lineTo(x, y + radius);
+                    ctx.quadraticCurveTo(x, y, x + radius, y);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                    
+                    // 점수 텍스트
+                    ctx.fillStyle = 'white';
+                    ctx.font = 'bold 50px "Noto Sans KR", sans-serif';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(score, x + boxSize / 2, y + boxSize / 2 + 3);
+                    
+                    // 이미지 저장
+                    finalCanvas.toBlob((blob) => {
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
@@ -1712,6 +1758,21 @@
                 document.exitFullscreen();
             }
         });
+        
+        // 자동 전체화면 함수
+        function tryAutoFullscreen() {
+            // 이미 전체화면이면 실행하지 않음
+            if (document.fullscreenElement) {
+                return;
+            }
+            
+            // 전체화면 시도
+            if (document.documentElement.requestFullscreen) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.log('자동 전체화면 실패 (사용자 인터랙션 필요):', err.message);
+                });
+            }
+        }
         
         // 진행 상태 업데이트 함수
         function updateProgressBar() {
@@ -2626,7 +2687,24 @@
         });
         
         
-        // 앱 시작 - 먼저 데이터 로드
+        // 앱 시작 - 즉시 전체화면 시도
+        tryAutoFullscreen();
+        
+        // 사용자 인터랙션 시 전체화면 재시도 (브라우저 정책 대응)
+        let fullscreenAttempted = false;
+        const attemptFullscreenOnInteraction = () => {
+            if (!fullscreenAttempted && !document.fullscreenElement) {
+                tryAutoFullscreen();
+                fullscreenAttempted = true;
+                // 성공하면 이벤트 리스너 제거
+                document.removeEventListener('click', attemptFullscreenOnInteraction);
+                document.removeEventListener('touchstart', attemptFullscreenOnInteraction);
+            }
+        };
+        document.addEventListener('click', attemptFullscreenOnInteraction);
+        document.addEventListener('touchstart', attemptFullscreenOnInteraction);
+        
+        // 데이터 로드
         loadQuizData().then(success => {
             if (success) {
                 updateProgressBar(); // 초기 진행 상태 표시
